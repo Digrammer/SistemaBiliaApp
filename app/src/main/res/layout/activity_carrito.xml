@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:background="#FFFFFF"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="8dp">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbarCarrito"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/yourPrimaryColor"
+        android:title="Mi Carrito"
+
+        android:titleTextColor="@color/black"  xmlns:app="http://schemas.android.com/apk/res-auto"
+        app:theme="@style/ThemeOverlay.AppCompat.Light"/>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvCarrito"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"/>
+
+    <TextView
+        android:id="@+id/tvTotal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Total: S/ 0.00"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:paddingTop="4dp"
+        android:textColor="#000000"/>
+
+    <Button
+        android:id="@+id/btnPagar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Realizar Pago"
+        android:backgroundTint="@color/yourPrimaryColor"
+        android:textColor="#000000"
+        android:layout_marginTop="8dp"/>
+</LinearLayout>

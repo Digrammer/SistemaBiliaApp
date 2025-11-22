@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.drawerlayout.widget.DrawerLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/drawer_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/white">
+
+    <LinearLayout
+        android:orientation="vertical"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/white">
+
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@color/yourPrimaryColor"
+            android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar" />
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="16dp"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Registro y Gestión de Usuarios"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    android:layout_marginBottom="16dp"/>
+
+                <EditText
+                    android:id="@+id/edtNombre"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Nombre" />
+                <EditText
+                    android:id="@+id/edtApellido"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Apellido" />
+                <EditText
+                    android:id="@+id/edtCorreo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Correo"
+                    android:inputType="textEmailAddress" />
+                <EditText
+                    android:id="@+id/edtPass"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Contraseña"
+                    android:inputType="textPassword" />
+                <EditText
+                    android:id="@+id/edtDni"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="DNI"
+                    android:inputType="number" />
+                <EditText
+                    android:id="@+id/edtTelefono"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Teléfono"
+                    android:inputType="phone" />
+                <EditText
+                    android:id="@+id/edtDireccion"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Dirección" />
+                <EditText
+                    android:id="@+id/edtRol"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Rol (admin/vendedor)" />
+
+                <Button
+                    android:id="@+id/btnCrear"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="CREAR USUARIO"
+                    android:layout_marginTop="20dp"
+                    android:backgroundTint="@color/yourPrimaryColor"
+                    android:textColor="@android:color/white"/>
+
+            </LinearLayout>
+        </ScrollView>
+    </LinearLayout>
+
+    <com.google.android.material.navigation.NavigationView
+        android:id="@+id/nav_view"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        app:menu="@menu/menu_lateral"
+        app:headerLayout="@layout/nav_header" />
+</androidx.drawerlayout.widget.DrawerLayout>

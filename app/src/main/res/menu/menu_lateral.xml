@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <group
+        android:id="@+id/grupo_general"
+        android:checkableBehavior="single">
+        <item
+            android:id="@+id/nav_inicio"
+            android:icon="@drawable/ic_casa"
+            android:title="Inicio"/>
+        <item
+            android:id="@+id/nav_productos"
+            android:icon="@drawable/ic_caja"
+            android:title="Productos"/>
+        <item
+            android:id="@+id/nav_pedidos"
+            android:icon="@drawable/ic_delivery"
+            android:title="Pedidos"/>
+    </group>
+
+    <group
+        android:id="@+id/grupo_gestion"
+        android:visible="false"
+        android:checkableBehavior="single">
+        <item android:title="Gestión del Negocio">
+            <menu>
+                <item
+                    android:id="@+id/nav_ventas_fisicas"
+                    android:icon="@android:drawable/ic_menu_edit"
+                    android:title="Módulo de Ventas"/>
+                <item
+                    android:id="@+id/nav_configuracion"
+                    android:icon="@android:drawable/ic_menu_manage"
+                    android:title="Gestión de Productos"/>
+                <item
+                    android:id="@+id/nav_crear_usuario"
+                    android:icon="@android:drawable/ic_menu_add"
+                    android:title="Gestión de Usuarios"/>
+            </menu>
+        </item>
+    </group>
+
+    <group
+        android:id="@+id/grupo_reportes"
+        android:visible="false"
+        android:checkableBehavior="single">
+        <item android:title="Administración">
+            <menu>
+                <item
+                    android:id="@+id/nav_reportes"
+                    android:icon="@android:drawable/ic_menu_sort_by_size"
+                    android:title="Reportes de Ventas"/>
+            </menu>
+        </item>
+    </group>
+
+    <item
+        android:id="@+id/nav_logout"
+        android:icon="@drawable/ic_flecha_atras_negra"
+        android:title="Iniciar Sesión"/>
+</menu>

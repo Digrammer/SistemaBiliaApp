@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="8dp"
+    android:background="?android:attr/selectableItemBackground">
+
+    <ImageView
+        android:id="@+id/ivProducto"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:scaleType="centerCrop"
+        android:contentDescription="Imagen del producto"/>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp">
+
+        <TextView
+            android:id="@+id/tvNombrePrecio"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:text="Nombre Producto | S/ 49.90"/>
+
+        <TextView
+            android:id="@+id/tvStock"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:text="Stock: 15"/>
+
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btnEditar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Editar"
+        style="@style/Widget.AppCompat.Button.Borderless"/>
+
+    <Button
+        android:id="@+id/btnStockMas"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="+ Stock"
+        style="@style/Widget.AppCompat.Button.Borderless.Colored"/>
+
+</LinearLayout>
