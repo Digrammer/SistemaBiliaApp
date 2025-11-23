@@ -21,7 +21,7 @@ import com.example.bibliaapp.model.CarritoItem;
 import com.example.bibliaapp.model.CarritoSingleton;
 import com.example.bibliaapp.model.Pedido;
 import com.example.bibliaapp.model.PedidoSingleton;
-import com.example.bibliaapp.model.DBHelper; // <-- IMPORTANTE: Añadir la importación de DBHelper
+import com.example.bibliaapp.model.DBHelper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,16 +37,15 @@ public class CheckoutActivity extends AppCompatActivity {
     private Button btnRealizarCompra;
     private Toolbar toolbar;
 
-    private DBHelper dbHelper; // <-- Declaración de DBHelper
+    private DBHelper dbHelper;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_checkout);
 
-        dbHelper = new DBHelper(this); // <-- Inicialización de DBHelper
+        dbHelper = new DBHelper(this);
 
-        // Configuración del Toolbar
         toolbar = findViewById(R.id.toolbarCheckout);
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
@@ -55,11 +54,8 @@ public class CheckoutActivity extends AppCompatActivity {
             getSupportActionBar().setHomeAsUpIndicator(R.drawable.ic_flecha_atras_negra);
         }
 
-        // Uso de ContextCompat.getColor() o color estático si el recurso falla
-        // toolbar.setBackgroundColor(getResources().getColor(R.color.yourPrimaryColor));
         toolbar.setTitleTextColor(0xFF000000);
 
-        // Vinculación de vistas (código omitido por brevedad, se mantiene igual)
         etNombre = findViewById(R.id.etNombre);
         etTelefono = findViewById(R.id.etTelefono);
         etDireccion = findViewById(R.id.etDireccion);
@@ -72,7 +68,6 @@ public class CheckoutActivity extends AppCompatActivity {
         tvDatosPlin = findViewById(R.id.tvDatosPlin);
         btnRealizarCompra = findViewById(R.id.btnRealizarCompra);
 
-        // Filtros (código omitido por brevedad, se mantiene igual)
         etNombre.setFilters(new InputFilter[]{new InputFilter() {
             @Override
             public CharSequence filter(CharSequence source, int start, int end, Spanned dest, int dstart, int dend) {
@@ -86,7 +81,6 @@ public class CheckoutActivity extends AppCompatActivity {
         }});
         etTelefono.setFilters(new InputFilter[]{new InputFilter.LengthFilter(9)});
 
-        // Estado inicial de pagos y Lógica de selección (código omitido por brevedad, se mantiene igual)
         ivQrYape.setVisibility(View.GONE);
         ivQrPlin.setVisibility(View.GONE);
         tvDatosYape.setVisibility(View.GONE);
@@ -106,60 +100,66 @@ public class CheckoutActivity extends AppCompatActivity {
             }
         });
 
-        // Lógica del botón comprar
         btnRealizarCompra.setOnClickListener(v -> {
             if (validarYGuardar()) {
 
                 List<CarritoItem> productosCopia = new ArrayList<>(CarritoSingleton.getInstance().getCarrito());
 
+                if (productosCopia.isEmpty()) {
+                    Toast.makeText(CheckoutActivity.this, "El carrito está vacío.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                String nombreCliente = etNombre.getText().toString().trim();
+                String telefonoCliente = etTelefono.getText().toString().trim();
+                String direccionCliente = etDireccion.getText().toString().trim();
                 String metodoPago = (rgPago.getCheckedRadioButtonId() == rbYape.getId()) ? "Yape" : "Plin";
+                String estadoPedido = "Pendiente";
 
                 Random random = new Random();
                 int idPedido = 100000 + random.nextInt(900000);
 
                 Pedido pedido = new Pedido(
                         idPedido,
-                        etNombre.getText().toString().trim(),
-                        etTelefono.getText().toString().trim(),
-                        etDireccion.getText().toString().trim(),
+                        nombreCliente,
+                        telefonoCliente,
+                        direccionCliente,
                         productosCopia
                 );
-
                 pedido.setTipoEntrega(metodoPago);
+                pedido.setEstado(estadoPedido);
 
-                // 🔥 CORRECCIÓN 2B: Actualizar el stock antes de guardar el pedido y limpiar
-                if (!productosCopia.isEmpty()) {
-                    for (CarritoItem item : productosCopia) {
-                        int idProducto = item.getProducto().getId();
-                        int cantidadComprada = item.getCantidad();
+                long idPedidoGuardado = dbHelper.guardarPedidoCompleto(pedido, productosCopia);
 
-                        // Restamos la cantidad comprada del stock disponible en la BD
-                        // Usamos un valor negativo para indicar resta, o un método específico en DBHelper
-                        boolean exito = dbHelper.actualizarStockPorCompra(idProducto, cantidadComprada);
+                if (idPedidoGuardado > 0) {
+                    dbHelper.guardarTelefonoDeCliente(telefonoCliente);
 
-                        if (!exito) {
-                            // En un caso real, esto debería ser un Rollback de la compra
-                            // Pero para esta implementación, solo mostramos una advertencia.
-                            Toast.makeText(CheckoutActivity.this, "Advertencia: Error al actualizar stock para " + item.getProducto().getNombre(), Toast.LENGTH_SHORT).show();
-                        }
-                    }
+                    PedidoSingleton.getInstance().agregarPedido(pedido);
+
+                    Toast.makeText(CheckoutActivity.this, "Compra N° " + pedido.getIdPedido() + " registrada con éxito.", Toast.LENGTH_LONG).show();
+
+                    Intent intent = new Intent(CheckoutActivity.this, BoletaActivity.class);
+                    // Se corrige el método de acceso a getIdPedido()
+                    intent.putExtra("idPedido", pedido.getIdPedido());
+                    startActivity(intent);
+
+                    CarritoSingleton.getInstance().limpiarCarrito();
+                    finish();
+                } else {
+                    Toast.makeText(CheckoutActivity.this, "ERROR: No se pudo registrar la compra. Falla en la base de datos o stock insuficiente.", Toast.LENGTH_LONG).show();
                 }
-
-                PedidoSingleton.getInstance().agregarPedido(pedido);
-
-                Intent intent = new Intent(CheckoutActivity.this, BoletaActivity.class);
-                intent.putExtra("idPedido", idPedido);
-                startActivity(intent);
-
-                // Limpiamos el carrito original solo después de la actualización de stock y el pase a Boleta
-                CarritoSingleton.getInstance().limpiarCarrito();
-                finish();
             }
         });
     }
 
-    // ... validarYGuardar() y onSupportNavigateUp() se mantienen iguales
 
+    @Override
+    public boolean onSupportNavigateUp() {
+        finish();
+        return true;
+    }
+
+    // Se reubica la función de validación al final de la clase para evitar errores de sintaxis
     private boolean validarYGuardar() {
         String nombre = etNombre.getText().toString().trim();
         String telefono = etTelefono.getText().toString().trim();
@@ -170,6 +170,7 @@ public class CheckoutActivity extends AppCompatActivity {
             Toast.makeText(this, "Nombre inválido", Toast.LENGTH_SHORT).show();
             return false;
         }
+        // Validación de 9 dígitos
         if (!telefono.matches("\\d{9}")) {
             Toast.makeText(this, "Teléfono inválido (debe ser 9 dígitos)", Toast.LENGTH_SHORT).show();
             return false;
@@ -183,13 +184,8 @@ public class CheckoutActivity extends AppCompatActivity {
             return false;
         }
 
-        Toast.makeText(this, "Compra realizada con éxito", Toast.LENGTH_LONG).show();
-        return true;
-    }
-
-    @Override
-    public boolean onSupportNavigateUp() {
-        finish();
+        // No se muestra Toast "Compra realizada con éxito" aquí, ya que se muestra
+        // si el dbHelper.guardarPedidoCompleto fue exitoso.
         return true;
     }
 }

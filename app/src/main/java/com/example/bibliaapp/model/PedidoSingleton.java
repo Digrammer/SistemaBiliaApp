@@ -10,7 +10,9 @@ public class PedidoSingleton {
 
     private PedidoSingleton() {
         pedidos = new ArrayList<>();
-        ultimoId = 0; // Empieza en 0
+        // Nota: Este singleton no se usa para generar IDs de BD, sino solo para manejo en memoria.
+        // El ID real del pedido se genera aleatoriamente en CheckoutActivity.
+        ultimoId = 0;
     }
 
     public static PedidoSingleton getInstance() {
@@ -20,7 +22,7 @@ public class PedidoSingleton {
         return instance;
     }
 
-    // Genera un nuevo ID consecutivo
+    // Nota: Esta función ya no es relevante si usas el ID aleatorio de CheckoutActivity
     public int generarNuevoId() {
         ultimoId += 1;
         return ultimoId;
@@ -36,7 +38,8 @@ public class PedidoSingleton {
 
     public Pedido getPedidoById(int id) {
         for (Pedido p : pedidos) {
-            if (p.getId() == id) return p;
+            // CORRECCIÓN: Usar getIdPedido() en lugar de getId()
+            if (p.getIdPedido() == id) return p;
         }
         return null;
     }

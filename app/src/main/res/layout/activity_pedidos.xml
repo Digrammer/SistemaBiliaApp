@@ -18,12 +18,31 @@
             android:background="@color/yourPrimaryColor"
             android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar" />
 
-        <LinearLayout
-            android:id="@+id/llPedidos"
+        <RelativeLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:padding="16dp" />
+            android:layout_height="match_parent">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recyclerViewPedidos"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:padding="8dp"
+                android:clipToPadding="false"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/tvNoPedidos"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="No hay pedidos registrados actualmente."
+                android:textSize="18sp"
+                android:textStyle="italic"
+                android:layout_centerInParent="true"
+                android:gravity="center"
+                android:padding="32dp"
+                android:visibility="gone" />
+
+        </RelativeLayout>
     </LinearLayout>
 
     <com.google.android.material.navigation.NavigationView

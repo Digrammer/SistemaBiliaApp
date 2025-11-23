@@ -1,12 +1,14 @@
 package com.example.bibliaapp.view;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.MenuItem;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -16,10 +18,6 @@ import com.example.bibliaapp.R;
 import com.example.bibliaapp.view.adapter.CarritoAdapter;
 import com.example.bibliaapp.model.CarritoItem;
 import com.example.bibliaapp.model.CarritoSingleton;
-import com.example.bibliaapp.model.Pedido;
-import com.example.bibliaapp.model.PedidoSingleton;
-// Nota: Para la actualización de stock final, necesitaremos importar DBHelper
-// import com.example.bibliaapp.model.DBHelper;
 
 import java.util.List;
 
@@ -29,23 +27,17 @@ public class CarritoActivity extends AppCompatActivity {
     private TextView tvTotal;
     private Button btnPagar;
     private CarritoAdapter adapter;
-    // Nota: Si CarritoActivity requiere DBHelper, debería declararse aquí:
-    // private DBHelper dbHelper;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_carrito);
 
-        // Inicializar DBHelper si fuera necesario
-        // dbHelper = new DBHelper(this);
-
         // Toolbar
         Toolbar toolbar = findViewById(R.id.toolbarCarrito);
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
             getSupportActionBar().setTitle("Mi Carrito");
-            // Asumiendo que 0xFF000000 es Negro (es un color ARGB)
             toolbar.setTitleTextColor(0xFF000000);
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         }
@@ -71,16 +63,36 @@ public class CarritoActivity extends AppCompatActivity {
 
         // Botón Realizar Pago
         btnPagar.setOnClickListener(v -> {
+            // 1. Verificar si está vacío
             if (carrito.isEmpty()) {
                 Toast.makeText(CarritoActivity.this, "El carrito está vacío", Toast.LENGTH_SHORT).show();
-            } else {
-                // La lógica del pedido se maneja mejor en Checkout o en la confirmación final.
-                // Este pedido temporal se puede omitir si CheckoutActivity maneja la persistencia.
-
-                // Abrir CheckoutActivity (Aquí es donde se DEBERÍA CONFIRMAR LA COMPRA Y ACTUALIZAR STOCK)
-                Intent intent = new Intent(CarritoActivity.this, CheckoutActivity.class);
-                startActivity(intent);
+                return;
             }
+
+            // 2. 🛑 VALIDACIÓN DE ROL: VISITANTE NO PUEDE COMPRAR
+            // Usamos las mismas claves que en Login y Pedidos
+            SharedPreferences prefs = getSharedPreferences("BibliaAppPrefs", MODE_PRIVATE);
+            String rol = prefs.getString("loggedUserRol", "visitante");
+
+            if ("visitante".equalsIgnoreCase(rol)) {
+                // Mostrar alerta y bloquear
+                new AlertDialog.Builder(this)
+                        .setTitle("Acceso Restringido")
+                        .setMessage("Los visitantes solo pueden ver el catálogo. Para realizar una compra, debes iniciar sesión o registrarte.")
+                        .setPositiveButton("Iniciar Sesión", (dialog, which) -> {
+                            // Ir al Login y borrar pila para no volver atrás
+                            Intent intent = new Intent(CarritoActivity.this, LoginActivity.class);
+                            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                            startActivity(intent);
+                        })
+                        .setNegativeButton("Cancelar", null)
+                        .show();
+                return; // Detener flujo aquí
+            }
+
+            // 3. Si es un usuario válido (Admin, Cliente, Vendedor), ir al Checkout
+            Intent intent = new Intent(CarritoActivity.this, CheckoutActivity.class);
+            startActivity(intent);
         });
     }
 
@@ -93,7 +105,6 @@ public class CarritoActivity extends AppCompatActivity {
             adapter.notifyDataSetChanged();
         }
     }
-
 
     private void actualizarTotal() {
         double total = 0;
