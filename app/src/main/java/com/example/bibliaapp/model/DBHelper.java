@@ -16,7 +16,8 @@ public class DBHelper extends SQLiteOpenHelper {
     private static final String DB_NAME = "BibliaAppDB";
     private static final int DB_VERSION = 2;
 
-    private static final String TABLE_USUARIOS = "usuarios";
+    // CAMBIO: public para acceso externo si es necesario
+    public static final String TABLE_USUARIOS = "usuarios";
     public static final String COL_USUARIO_ID = "id_usuario";
     public static final String COL_USUARIO_NOMBRE = "nombre";
     public static final String COL_USUARIO_APELLIDO = "apellido";
@@ -27,10 +28,11 @@ public class DBHelper extends SQLiteOpenHelper {
     public static final String COL_USUARIO_DIRECCION = "direccion";
     public static final String COL_USUARIO_ROL = "rol";
 
-    private static final String TABLE_PRODUCTOS = "productos";
-    private static final String TABLE_CATEGORIAS = "categorias";
-    private static final String TABLE_PEDIDOS = "pedidos";
-    private static final String TABLE_DETALLE_PEDIDO = "detalle_pedido";
+    // 🛑 CAMBIOS IMPORTANTES: CONSTANTES A PUBLIC
+    public static final String TABLE_PRODUCTOS = "productos";
+    public static final String TABLE_CATEGORIAS = "categorias";
+    public static final String TABLE_PEDIDOS = "pedidos"; // Necesario para BoletaActivity
+    public static final String TABLE_DETALLE_PEDIDO = "detalle_pedido";
     private static final String TABLE_BOLETAS = "boletas";
 
     public DBHelper(@Nullable Context context) {
@@ -78,7 +80,7 @@ public class DBHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX idx_productos_categoria ON " + TABLE_PRODUCTOS + "(id_categoria);");
         db.execSQL("CREATE INDEX idx_productos_nombre ON " + TABLE_PRODUCTOS + "(nombre);");
 
-        // Creación de la tabla PEDIDOS (TU CÓDIGO ORIGINAL, NO FUE TOCADO)
+        // Creación de la tabla PEDIDOS
         db.execSQL("CREATE TABLE " + TABLE_PEDIDOS + " (" +
                 "id_pedido INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "codigo TEXT NOT NULL UNIQUE," +
@@ -93,7 +95,7 @@ public class DBHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX idx_pedidos_usuario ON " + TABLE_PEDIDOS + "(id_usuario);");
         db.execSQL("CREATE INDEX idx_pedidos_codigo ON " + TABLE_PEDIDOS + "(codigo);");
 
-        // Creación de la tabla DETALLE_PEDIDO (TU CÓDIGO ORIGINAL, NO FUE TOCADO)
+        // Creación de la tabla DETALLE_PEDIDO
         db.execSQL("CREATE TABLE " + TABLE_DETALLE_PEDIDO + " (" +
                 "id_detalle INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "id_pedido INTEGER NOT NULL," +
@@ -125,11 +127,10 @@ public class DBHelper extends SQLiteOpenHelper {
                 "telefono TEXT" +
                 ");");
 
-        // --- INICIALIZACIÓN DE DATOS (SOLO SE EJECUTA UNA VEZ) ---
-        checkAndInsertInitialCategories(db); // Primero categorías
-        insertInitialProducts(db);          // Luego productos que dependen de categorías
-        checkAndInsertInitialUsers(db);     // Finalmente usuarios
-        // ---------------------------------------------------------
+        // --- INICIALIZACIÓN DE DATOS ---
+        checkAndInsertInitialCategories(db);
+        insertInitialProducts(db);
+        checkAndInsertInitialUsers(db);
     }
 
     @Override
@@ -160,7 +161,6 @@ public class DBHelper extends SQLiteOpenHelper {
             cv.put("imagen", imagen);
             cv.put("id_categoria", id_categoria);
             cv.put("stock", stock);
-            // Uso de insertWithOnConflict con CONFLICT_IGNORE para evitar duplicados si se llama dos veces por error
             db.insertWithOnConflict(TABLE_PRODUCTOS, null, cv, SQLiteDatabase.CONFLICT_IGNORE);
         }
     }
@@ -179,7 +179,6 @@ public class DBHelper extends SQLiteOpenHelper {
     }
 
     public void checkAndInsertInitialCategories(SQLiteDatabase db) {
-        // Corregido a mayúscula inicial para consistencia con los productos
         String[] categoriasIniciales = {"Biblias", "Libros", "Regalos", "Accesorios", "Papelería"};
         for (String categoria : categoriasIniciales) {
             db.execSQL("INSERT OR IGNORE INTO " + TABLE_CATEGORIAS + " (nombre) VALUES (?)", new String[]{categoria});
@@ -192,7 +191,6 @@ public class DBHelper extends SQLiteOpenHelper {
             int count = cursor.getInt(0);
             cursor.close();
             if (count == 0) {
-                // El método de inserción interno usa la DB que se le pasa
                 insertUsuarioInterno(db, "Admin", "Root", "admin@gmail.com", "Admin@123", "00000000", "999999999", "Dirección Admin", "administrador");
                 insertUsuarioInterno(db, "Vendedor", "Principal", "vendedor@gmail.com", "Venta@123", "11111111", "988888888", "Dirección Ventas", "vendedor");
                 insertUsuarioInterno(db, "Cliente", "Prueba", "cliente@gmail.com", "Cliente@123", "22222222", "977777777", "Dirección Cliente", "cliente");
@@ -215,7 +213,7 @@ public class DBHelper extends SQLiteOpenHelper {
     }
 
 
-    // --- MÉTODOS PÚBLICOS Y EXISTENTES (NO TOCADOS) ---
+    // --- MÉTODOS PÚBLICOS Y EXISTENTES ---
 
     public int getProductoCount() {
         SQLiteDatabase db = this.getReadableDatabase();
@@ -510,17 +508,9 @@ public class DBHelper extends SQLiteOpenHelper {
     }
 
     // =========================================================================
-    // === NUEVOS MÉTODOS AÑADIDOS PARA EL FLUJO DE CHECKOUT (SIN MODIFICAR LO EXISTENTE) ===
+    // === MÉTODOS AÑADIDOS PARA EL FLUJO DE CHECKOUT (SIN MODIFICAR LO EXISTENTE) ===
     // =========================================================================
 
-    /**
-     * Guarda el pedido completo (encabezado y detalles), reduce el stock de productos
-     * y realiza una transacción para asegurar la integridad de los datos.
-     *
-     * @param pedido El objeto Pedido con la información del cliente y el total.
-     * @param items La lista de CarritoItem para el detalle y la reducción de stock.
-     * @return El ID de fila del pedido insertado, o -1 si la transacción falló.
-     */
     public long guardarPedidoCompleto(Pedido pedido, List<CarritoItem> items) {
         SQLiteDatabase db = this.getWritableDatabase();
         db.beginTransaction();
@@ -528,12 +518,10 @@ public class DBHelper extends SQLiteOpenHelper {
         double totalCalculado = pedido.getTotal();
 
         try {
-            // --- Paso 1: Insertar en la tabla PEDIDOS (Encabezado) ---
-            // Usamos el ID de usuario 3 (Cliente Prueba), ya que el cliente no está logueado en este flujo.
             int id_usuario_anonimo = 3;
 
             ContentValues cvPedido = new ContentValues();
-            cvPedido.put("codigo", String.valueOf(pedido.getIdPedido())); // Usamos el ID de 6 dígitos como código
+            cvPedido.put("codigo", String.valueOf(pedido.getIdPedido()));
             cvPedido.put("id_usuario", id_usuario_anonimo);
             cvPedido.put("estado", pedido.getEstado());
             cvPedido.put("metodo_pago", pedido.getTipoEntrega());
@@ -545,9 +533,7 @@ public class DBHelper extends SQLiteOpenHelper {
             if (idPedidoInsertado > 0) {
                 boolean detallesOk = true;
 
-                // --- Paso 2: Insertar en DETALLE_PEDIDO y Reducir STOCK ---
                 for (CarritoItem item : items) {
-                    // Insertar detalle
                     ContentValues cvDetalle = new ContentValues();
                     cvDetalle.put("id_pedido", idPedidoInsertado);
                     cvDetalle.put("id_producto", item.getProductoId());
@@ -556,7 +542,6 @@ public class DBHelper extends SQLiteOpenHelper {
 
                     long resultDetalle = db.insert(TABLE_DETALLE_PEDIDO, null, cvDetalle);
 
-                    // Reducir stock (Reutilizamos la función ya existente: actualizarStockPorCompra)
                     boolean stockReducido = actualizarStockPorCompra(item.getProductoId(), item.getCantidad());
 
                     if (resultDetalle <= 0 || !stockReducido) {
@@ -568,7 +553,7 @@ public class DBHelper extends SQLiteOpenHelper {
                 if (detallesOk) {
                     db.setTransactionSuccessful();
                 } else {
-                    idPedidoInsertado = -1; // Falló algún detalle o stock
+                    idPedidoInsertado = -1;
                 }
             }
         } catch (Exception e) {
@@ -581,20 +566,65 @@ public class DBHelper extends SQLiteOpenHelper {
         return idPedidoInsertado;
     }
 
-
-    /**
-     * Actualiza la información del teléfono en el perfil del usuario 'cliente' (ID 3),
-     * cumpliendo con el requisito de guardar el contacto para el administrador.
-     *
-     * @param telefono El número de teléfono del cliente.
-     * @return true si se actualizó, false si falló.
-     */
     public boolean guardarTelefonoDeCliente(String telefono) {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues cv = new ContentValues();
         cv.put(COL_USUARIO_TELEFONO, telefono);
-        // Usamos el ID 3 (Cliente Prueba) para guardar el dato
         int filasAfectadas = db.update(TABLE_USUARIOS, cv, COL_USUARIO_ID + " = ?", new String[]{"3"});
         return filasAfectadas > 0;
+    }
+
+    // =========================================================================
+    // === NUEVOS MÉTODOS AÑADIDOS PARA RESOLVER "PRODUCTO DESCONOCIDO" EN BOLETA ===
+    // =========================================================================
+
+    /**
+     * Obtiene un objeto Producto completo de la BD usando su ID.
+     * Este método es crucial para mapear el ID del CarritoItem al nombre real.
+     * @param idProducto El ID del producto a buscar.
+     * @return Objeto Producto con todos sus datos, o null si no se encuentra.
+     */
+    public Producto getProductoByIdModel(int idProducto) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = null;
+        Producto producto = null;
+
+        try {
+            cursor = getProductoById(idProducto);
+
+            if (cursor != null && cursor.moveToFirst()) {
+                int id = cursor.getInt(cursor.getColumnIndexOrThrow("id_producto"));
+                String nombre = cursor.getString(cursor.getColumnIndexOrThrow("nombre"));
+                double precio = cursor.getDouble(cursor.getColumnIndexOrThrow("precio"));
+                String imagen = cursor.getString(cursor.getColumnIndexOrThrow("imagen"));
+                int id_categoria = cursor.getInt(cursor.getColumnIndexOrThrow("id_categoria"));
+                int stock = cursor.getInt(cursor.getColumnIndexOrThrow("stock"));
+
+                producto = new Producto(id, nombre, precio, imagen, stock, id_categoria);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+        return producto;
+    }
+
+    /**
+     * Obtiene el detalle de un pedido haciendo JOIN con la tabla de productos para obtener el nombre y precio.
+     * @param id_pedido El ID interno (INTEGER) del pedido.
+     * @return Cursor con los campos: id_producto, cantidad, subtotal Y nombre, precio del producto.
+     */
+    public Cursor getDetallePedidoConNombre(long id_pedido) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        String query = "SELECT " +
+                "dp.id_producto, dp.cantidad, dp.subtotal, p.nombre, p.precio " +
+                "FROM " + TABLE_DETALLE_PEDIDO + " dp " +
+                "JOIN " + TABLE_PRODUCTOS + " p ON dp.id_producto = p.id_producto " +
+                "WHERE dp.id_pedido = ?";
+
+        return db.rawQuery(query, new String[]{String.valueOf(id_pedido)});
     }
 }
