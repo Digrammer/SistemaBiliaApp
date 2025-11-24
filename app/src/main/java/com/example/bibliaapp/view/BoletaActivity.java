@@ -23,6 +23,7 @@ public class BoletaActivity extends AppCompatActivity {
     private static final String TAG = "BoletaActivity";
     private Button btnEntregaEnTienda, btnEntregaDelivery;
     private DBHelper dbHelper;
+    private TextView tvFechaPedido; // <-- [CAMBIO 1] Declaración del nuevo TextView
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,6 +39,7 @@ public class BoletaActivity extends AppCompatActivity {
 
         btnEntregaEnTienda = findViewById(R.id.btnEntregaEnTienda);
         btnEntregaDelivery = findViewById(R.id.btnEntregaDelivery);
+        tvFechaPedido = findViewById(R.id.tvFechaPedido); // <-- [CAMBIO 2] Inicialización del nuevo TextView
 
         // El ID que pasa el checkout es el CÓDIGO de 6 dígitos
         int idPedidoCodigo = getIntent().getIntExtra("idPedido", -1);
@@ -47,15 +49,42 @@ public class BoletaActivity extends AppCompatActivity {
         StringBuilder sb = new StringBuilder();
 
         if (pedido != null) {
-            // --- 1. CABECERA ---
+
+            // --- 1. CABECERA (CON CONSULTA DE FECHA) ---
             sb.append("Boleta #").append(pedido.getIdPedido()).append("\n");
+
+            // 🛑 [CAMBIO 3] Lógica para obtener y mostrar la fecha usando el nuevo método de DBHelper
+            long idPedidoDb = getDbIdFromCodigo(idPedidoCodigo);
+            String fechaPedido = "Fecha no disponible";
+
+            if (idPedidoDb != -1) {
+                Cursor cursorInfo = null;
+                try {
+                    // Usamos el método añadido al DBHelper
+                    cursorInfo = dbHelper.getPedidoInfoById(idPedidoDb);
+                    if (cursorInfo != null && cursorInfo.moveToFirst()) {
+                        fechaPedido = cursorInfo.getString(cursorInfo.getColumnIndexOrThrow("fecha"));
+
+                        // Modificación: Corta para dejar SOLO la fecha (YYYY-MM-DD)
+                        fechaPedido = fechaPedido.substring(0, 10);
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error obteniendo fecha del pedido: " + e.getMessage());
+                } finally {
+                    if (cursorInfo != null) cursorInfo.close();
+                }
+            }
+
+            // Muestra la fecha en el TextView dedicado
+            tvFechaPedido.setText("Fecha de Compra: " + fechaPedido);
+
+            // Continúa con la Boleta
             sb.append("Nombre: ").append(pedido.getNombreCliente()).append("\n");
             sb.append("Teléfono: ").append(pedido.getTelefono()).append("\n");
             sb.append("Dirección: ").append(pedido.getDireccion()).append("\n\n");
             sb.append("Productos:\n");
 
             // --- 2. DETALLE (CARGA REAL DE NOMBRES DESDE DB) ---
-            long idPedidoDb = getDbIdFromCodigo(idPedidoCodigo); // Buscar el ID interno de la DB
             Cursor cursorDetalle = null;
 
             if (idPedidoDb != -1) {

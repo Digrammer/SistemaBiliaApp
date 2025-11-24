@@ -707,4 +707,12 @@ public class DBHelper extends SQLiteOpenHelper {
 
         return db.rawQuery(query, new String[]{String.valueOf(id_pedido)});
     }
+    // --- MÉTODO AÑADIDO PARA OBTENER INFORMACIÓN COMPLETA DEL PEDIDO ---
+    public Cursor getPedidoInfoById(long id_pedido) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        String query = "SELECT codigo, fecha, id_usuario, total, estado, metodo_pago, telefono_contacto, id_pedido FROM " +
+                TABLE_PEDIDOS + " WHERE id_pedido = ?";
+        return db.rawQuery(query, new String[]{String.valueOf(id_pedido)});
+    }
+    // ----------------------------------------------------------------------
 }

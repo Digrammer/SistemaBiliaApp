@@ -271,7 +271,7 @@ public class GestionProductoAdapter extends RecyclerView.Adapter<GestionProducto
             dialog.show();
         }
 
-        // --- DIÁLOGO PARA ELIMINAR (Lógica de eliminación es Correcta) ---
+        // --- DIÁLOGO PARA ELIMINAR (CORREGIDO: MANEJO DE ERROR DE LLAVE FORÁNEA) ---
         private void mostrarDialogoConfirmarEliminar(int position) {
             if (position == RecyclerView.NO_POSITION) return;
             Producto producto = listaProductos.get(position);
@@ -280,14 +280,27 @@ public class GestionProductoAdapter extends RecyclerView.Adapter<GestionProducto
                     .setTitle("Confirmar Eliminación")
                     .setMessage("¿Estás seguro de que deseas eliminar el producto '" + producto.getNombre() + "'? Esta acción es irreversible.")
                     .setPositiveButton("Eliminar", (dialog, which) -> {
-                        int filasAfectadas = dbHelper.deleteProducto(producto.getId());
 
-                        if (filasAfectadas > 0) {
-                            listaProductos.remove(position);
-                            notifyItemRemoved(position);
-                            Toast.makeText(context, "Producto eliminado correctamente.", Toast.LENGTH_SHORT).show();
-                        } else {
-                            Toast.makeText(context, "Error al intentar eliminar el producto.", Toast.LENGTH_SHORT).show();
+                        try {
+                            // Intentamos la eliminación
+                            int filasAfectadas = dbHelper.deleteProducto(producto.getId());
+
+                            if (filasAfectadas > 0) {
+                                // 1. Éxito: El producto no tenía ventas registradas.
+                                listaProductos.remove(position);
+                                notifyItemRemoved(position);
+                                Toast.makeText(context, "Producto eliminado correctamente.", Toast.LENGTH_SHORT).show();
+                            } else {
+                                // 2. Falla Genérica: Producto no encontrado.
+                                Toast.makeText(context, "Error al intentar eliminar el producto. No se encontró en la DB.", Toast.LENGTH_SHORT).show();
+                            }
+                        } catch (android.database.sqlite.SQLiteConstraintException e) {
+                            // 3. FALLA CLAVE: Capturamos la restricción de llave foránea (el producto fue vendido)
+                            Toast.makeText(context, "⚠️ No se puede eliminar: Ha sido registrado en una o más ventas.", Toast.LENGTH_LONG).show();
+                        } catch (Exception e) {
+                            // 4. Cualquier otro error inesperado.
+                            Toast.makeText(context, "Error inesperado al intentar eliminar.", Toast.LENGTH_SHORT).show();
+                            e.printStackTrace();
                         }
                     })
                     .setNegativeButton("Cancelar", null)

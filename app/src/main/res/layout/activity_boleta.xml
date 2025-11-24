@@ -22,14 +22,29 @@
         android:paddingEnd="16dp"
         android:paddingTop="16dp">
 
-        <TextView
-            android:id="@+id/tvBoleta"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textSize="14sp"
-            android:textColor="@color/black"
-            android:text="La información del pedido aparecerá aquí..." />
+            android:orientation="vertical">
 
+            <TextView
+                android:id="@+id/tvFechaPedido"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="12sp"
+                android:textColor="@color/black"
+                android:layout_marginBottom="8dp"
+                android:textStyle="italic" />
+
+            <TextView
+                android:id="@+id/tvBoleta"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="14sp"
+                android:textColor="@color/black"
+                android:text="La información del pedido aparecerá aquí..." />
+
+        </LinearLayout>
     </ScrollView>
 
     <LinearLayout
