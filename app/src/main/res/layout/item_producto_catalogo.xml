@@ -19,7 +19,8 @@
             android:layout_height="150dp"
             android:scaleType="centerCrop"
             android:src="@drawable/placeholder"
-            android:contentDescription="Imagen del producto en catálogo"/>
+            android:contentDescription="Imagen del producto en catálogo"
+            android:clickable="false"      android:focusable="false"      />
 
         <TextView
             android:id="@+id/tvNombre"

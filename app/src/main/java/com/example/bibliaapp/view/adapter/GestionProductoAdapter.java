@@ -11,6 +11,8 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.graphics.BitmapFactory;
+import android.graphics.Bitmap;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -36,7 +38,6 @@ public class GestionProductoAdapter extends RecyclerView.Adapter<GestionProducto
     @NonNull
     @Override
     public ProductoViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        // Asumiendo que item_producto_gestion.xml existe y contiene los elementos
         View view = LayoutInflater.from(context).inflate(R.layout.item_producto_gestion, parent, false);
         return new ProductoViewHolder(view);
     }
@@ -58,68 +59,102 @@ public class GestionProductoAdapter extends RecyclerView.Adapter<GestionProducto
         notifyDataSetChanged();
     }
 
+    // Métodos de optimización de imagen (copiados de ProductoCatalogoAdapter para ser consistentes)
+    private Bitmap decodeSampledBitmapFromFile(String path, int reqWidth, int reqHeight) {
+        final BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(path, options);
+
+        options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight);
+
+        options.inJustDecodeBounds = false;
+        return BitmapFactory.decodeFile(path, options);
+    }
+
+    private int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight) {
+        final int height = options.outHeight;
+        final int width = options.outWidth;
+        int inSampleSize = 1;
+
+        if (height > reqHeight || width > reqWidth) {
+            final int halfHeight = height / 2;
+            final int halfWidth = width / 2;
+
+            while ((halfHeight / inSampleSize) >= reqHeight
+                    && (halfWidth / inSampleSize) >= reqWidth) {
+                inSampleSize *= 2;
+            }
+        }
+        return inSampleSize;
+    }
+
     public class ProductoViewHolder extends RecyclerView.ViewHolder {
         ImageView ivProducto;
         TextView tvNombrePrecio;
         TextView tvStock;
         Button btnEditar;
         Button btnStockMas;
-        Button btnEliminar; // Nuevo botón de eliminar
+        Button btnEliminar;
 
         public ProductoViewHolder(@NonNull View itemView) {
             super(itemView);
-            // Asumiendo que item_producto_gestion.xml ya tiene estos IDs:
+
+            // 🛑 CORRECCIÓN CLAVE: ANULAR CUALQUIER CLICK EN EL ITEM COMPLETO (TARJETA)
+            // Esto previene que se disparen listeners residuales o de navegación.
+            itemView.setOnClickListener(null);
+            itemView.setClickable(false);
+
             ivProducto = itemView.findViewById(R.id.ivProducto);
             tvNombrePrecio = itemView.findViewById(R.id.tvNombrePrecio);
             tvStock = itemView.findViewById(R.id.tvStock);
             btnEditar = itemView.findViewById(R.id.btnEditar);
             btnStockMas = itemView.findViewById(R.id.btnStockMas);
-            btnEliminar = itemView.findViewById(R.id.btnEliminar); // Conectar el botón de eliminar
+            btnEliminar = itemView.findViewById(R.id.btnEliminar);
 
+            // Listeners de los botones internos (los únicos que deben funcionar)
             btnEditar.setOnClickListener(v -> mostrarDialogoEdicion(getAdapterPosition()));
-            btnStockMas.setOnClickListener(v -> mostrarDialogoAñadirStock(getAdapterPosition())); // Cambio aquí
-            btnEliminar.setOnClickListener(v -> mostrarDialogoConfirmarEliminar(getAdapterPosition())); // Nuevo Listener
+            btnStockMas.setOnClickListener(v -> mostrarDialogoAñadirStock(getAdapterPosition()));
+            btnEliminar.setOnClickListener(v -> mostrarDialogoConfirmarEliminar(getAdapterPosition()));
         }
 
-        // === BLOQUE DE REEMPLAZO (Carga Asíncrona y Optimizada) ===
+        // === BLOQUE DE REEMPLAZO (Carga de Imagen OPTIMIZADA) ===
+        // Reemplazo la lógica de hilos por la función optimizada para consistencia.
         public void bind(Producto producto) {
             tvNombrePrecio.setText(String.format("%s | S/ %.2f", producto.getNombre(), producto.getPrecio()));
             tvStock.setText(String.format("Stock: %d", producto.getStock()));
 
-            // LÓGICA DE IMAGEN OPTIMIZADA (FIX LAG)
             String imagenStr = producto.getImagen();
-            ivProducto.setImageResource(R.drawable.placeholder); // Default inmediato (Placeholder)
+            boolean loaded = false;
 
             if (imagenStr != null && !imagenStr.isEmpty()) {
-                // Usamos un hilo secundario para evitar bloquear la UI
-                new Thread(() -> {
-                    try {
-                        // 1. Intentar cargar como archivo (Productos nuevos)
-                        java.io.File imgFile = new java.io.File(imagenStr);
-                        if (imgFile.exists()) {
-                            // Carga optimizada: reduce la imagen para que sea ligera
-                            android.graphics.BitmapFactory.Options options = new android.graphics.BitmapFactory.Options();
-                            options.inSampleSize = 4; // Reduce la imagen a 1/4 de su tamaño
-                            android.graphics.Bitmap bitmap = android.graphics.BitmapFactory.decodeFile(imgFile.getAbsolutePath(), options);
+                // 1. Intentar cargar como recurso (Productos iniciales/por defecto)
+                int resId = context.getResources().getIdentifier(imagenStr, "drawable", context.getPackageName());
+                if (resId != 0) {
+                    ivProducto.setImageResource(resId);
+                    loaded = true;
+                }
 
-                            // Vuelve al hilo principal para actualizar la vista (UI)
-                            ivProducto.post(() -> ivProducto.setImageBitmap(bitmap));
-                        } else {
-                            // 2. Intentar cargar como recurso (Productos iniciales/por defecto)
-                            int resId = context.getResources().getIdentifier(imagenStr, "drawable", context.getPackageName());
-                            if (resId != 0) {
-                                // Vuelve al hilo principal para actualizar la vista (UI)
-                                ivProducto.post(() -> ivProducto.setImageResource(resId));
-                            }
+                // 2. Intentar cargar como archivo local (optimizado)
+                if (!loaded) {
+                    try {
+                        Bitmap bitmap = decodeSampledBitmapFromFile(imagenStr, 100, 100);
+
+                        if (bitmap != null) {
+                            ivProducto.setImageBitmap(bitmap);
+                            loaded = true;
                         }
                     } catch (Exception e) {
-                        // En caso de cualquier error de carga (ej. archivo no encontrado)
                         e.printStackTrace();
                     }
-                }).start();
+                }
+            }
+
+            if (!loaded) {
+                ivProducto.setImageResource(R.drawable.placeholder);
             }
         }
         // ===================================
+
         // --- DIÁLOGO PARA EDITAR (Nombre y Precio) ---
         private void mostrarDialogoEdicion(int position) {
             if (position == RecyclerView.NO_POSITION) return;
@@ -128,7 +163,6 @@ public class GestionProductoAdapter extends RecyclerView.Adapter<GestionProducto
             AlertDialog.Builder builder = new AlertDialog.Builder(context);
             LayoutInflater inflater = LayoutInflater.from(context);
 
-            // Se asume que dialog_editar_simple.xml existe
             View dialogView = inflater.inflate(R.layout.dialog_editar_simple, null);
             builder.setView(dialogView);
 
@@ -150,7 +184,6 @@ public class GestionProductoAdapter extends RecyclerView.Adapter<GestionProducto
                     return;
                 }
 
-                // Validación para que el precio sea numérico
                 if (!nuevoPrecioStr.matches("^[0-9]+(\\.[0-9]+)?$")) {
                     Toast.makeText(context, "El precio debe ser un número válido.", Toast.LENGTH_SHORT).show();
                     return;
@@ -179,14 +212,13 @@ public class GestionProductoAdapter extends RecyclerView.Adapter<GestionProducto
                     dialog.dismiss();
 
                 } catch (NumberFormatException e) {
-                    // Esta excepción fue cubierta por el regex, pero la mantenemos por seguridad
                     Toast.makeText(context, "Error interno en el formato de precio.", Toast.LENGTH_SHORT).show();
                 }
             });
             dialog.show();
         }
 
-        // --- DIÁLOGO PARA AÑADIR STOCK (SOLUCIÓN AL PROBLEMA 4) ---
+        // --- DIÁLOGO PARA AÑADIR STOCK ---
         private void mostrarDialogoAñadirStock(int position) {
             if (position == RecyclerView.NO_POSITION) return;
             Producto producto = listaProductos.get(position);
@@ -194,7 +226,6 @@ public class GestionProductoAdapter extends RecyclerView.Adapter<GestionProducto
             AlertDialog.Builder builder = new AlertDialog.Builder(context);
             LayoutInflater inflater = LayoutInflater.from(context);
 
-            // Usamos un layout simple (puedes crear dialog_añadir_stock.xml)
             View dialogView = inflater.inflate(R.layout.dialog_anadir_stock, null);
             builder.setView(dialogView);
 
@@ -222,11 +253,9 @@ public class GestionProductoAdapter extends RecyclerView.Adapter<GestionProducto
                         return;
                     }
 
-                    // Llamamos al método de sumar stock en DBHelper
                     boolean actualizado = dbHelper.actualizarStock(producto.getId(), cantidadAñadir);
 
                     if (actualizado) {
-                        // Actualizamos la lista en memoria (lo que ya hace tu código)
                         producto.setStock(producto.getStock() + cantidadAñadir);
                         notifyItemChanged(position);
                         Toast.makeText(context, String.format("Se añadieron %d unidades a %s.", cantidadAñadir, producto.getNombre()), Toast.LENGTH_SHORT).show();
@@ -242,7 +271,7 @@ public class GestionProductoAdapter extends RecyclerView.Adapter<GestionProducto
             dialog.show();
         }
 
-        // --- DIÁLOGO PARA ELIMINAR (Punto 5) ---
+        // --- DIÁLOGO PARA ELIMINAR (Lógica de eliminación es Correcta) ---
         private void mostrarDialogoConfirmarEliminar(int position) {
             if (position == RecyclerView.NO_POSITION) return;
             Producto producto = listaProductos.get(position);
@@ -254,7 +283,6 @@ public class GestionProductoAdapter extends RecyclerView.Adapter<GestionProducto
                         int filasAfectadas = dbHelper.deleteProducto(producto.getId());
 
                         if (filasAfectadas > 0) {
-                            // Eliminamos de la lista en memoria y notificamos al adaptador
                             listaProductos.remove(position);
                             notifyItemRemoved(position);
                             Toast.makeText(context, "Producto eliminado correctamente.", Toast.LENGTH_SHORT).show();

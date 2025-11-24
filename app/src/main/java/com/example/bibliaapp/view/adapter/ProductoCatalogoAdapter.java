@@ -41,7 +41,6 @@ public class ProductoCatalogoAdapter extends RecyclerView.Adapter<ProductoCatalo
     @NonNull
     @Override
     public ProductoViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        // 🚨 CORRECCIÓN 1: Asegura inflar el layout correcto: item_producto_catalogo
         View view = LayoutInflater.from(context).inflate(R.layout.item_producto_catalogo, parent, false);
         return new ProductoViewHolder(view);
     }
@@ -50,14 +49,10 @@ public class ProductoCatalogoAdapter extends RecyclerView.Adapter<ProductoCatalo
     public void onBindViewHolder(@NonNull ProductoViewHolder holder, int position) {
         Producto producto = listaProductos.get(position);
 
-        // Línea 49
         holder.tvNombreProd.setText(producto.getNombre());
-
-        // Línea 51
         holder.tvPrecioProd.setText("S/ " + String.format("%.2f", producto.getPrecio()));
 
-// 🚨 ESTE CÓDIGO MANEJA AMBOS CASOS (Drawable y Ruta de Archivo)
-
+        // LÓGICA DE CARGA DE IMAGEN MEJORADA (DOBLE VERIFICACIÓN + OPTIMIZACIÓN DE RENDIMIENTO)
         String imageNameOrPath = producto.getImagen();
         boolean loaded = false;
 
@@ -68,18 +63,16 @@ public class ProductoCatalogoAdapter extends RecyclerView.Adapter<ProductoCatalo
                     imageNameOrPath, "drawable", context.getPackageName());
 
             if (resId != 0) {
-                // ÉXITO: Se cargó desde la carpeta drawable
                 holder.ivProducto.setImageResource(resId);
                 loaded = true;
             }
 
-            // 2. INTENTO: Cargar como ARCHIVO LOCAL (desde la galería/ruta de archivo)
+            // 2. INTENTO: Cargar como ARCHIVO LOCAL (desde la galería/ruta de archivo) - OPTIMIZADO
             if (!loaded) {
                 try {
-                    Bitmap bitmap = BitmapFactory.decodeFile(imageNameOrPath);
+                    Bitmap bitmap = decodeSampledBitmapFromFile(imageNameOrPath, 300, 300);
 
                     if (bitmap != null) {
-                        // ÉXITO: Se cargó desde la ruta de archivo local
                         holder.ivProducto.setImageBitmap(bitmap);
                         loaded = true;
                     }
@@ -89,14 +82,13 @@ public class ProductoCatalogoAdapter extends RecyclerView.Adapter<ProductoCatalo
             }
         }
 
-// 3. FALLBACK: Si no se pudo cargar en ninguno de los dos intentos
+        // 3. FALLBACK: Si no se pudo cargar en ninguno de los dos intentos
         if (!loaded) {
             holder.ivProducto.setImageResource(R.drawable.placeholder);
         }
+        // FIN DE LÓGICA DE CARGA DE IMAGEN
 
-// 🚨 FIN DEL BLOQUE DE CÓDIGO
-
-        // 🚨 Línea que estaba fallando (Aproximadamente línea 66 en tu código original)
+        // LÓGICA DEL BOTÓN AÑADIR AL CARRITO (ESTA ES LA ÚNICA INTERACCIÓN QUE DEBE EXISTIR)
         holder.btnAgregarCarrito.setOnClickListener(v -> {
 
             boolean exito = carritoSingleton.agregarProducto(producto);
@@ -117,16 +109,43 @@ public class ProductoCatalogoAdapter extends RecyclerView.Adapter<ProductoCatalo
             }
         });
 
-        holder.itemView.setOnClickListener(v -> {
-            Intent intent = new Intent(context, DetalleProductoActivity.class);
-            intent.putExtra("id_producto", producto.getId());
-            context.startActivity(intent);
-        });
+        // 🛑 NO HAY CÓDIGO AQUÍ. ELIMINAMOS LA INTERACCIÓN DE CLIC EN LA TARJETA COMPLETA.
+
     }
 
     @Override
     public int getItemCount() {
         return listaProductos.size();
+    }
+
+    // MÉTODOS AUXILIARES PARA OPTIMIZAR EL RENDIMIENTO DE LA CARGA DE BITMAPS
+
+    private Bitmap decodeSampledBitmapFromFile(String path, int reqWidth, int reqHeight) {
+        final BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(path, options);
+
+        options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight);
+
+        options.inJustDecodeBounds = false;
+        return BitmapFactory.decodeFile(path, options);
+    }
+
+    private int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight) {
+        final int height = options.outHeight;
+        final int width = options.outWidth;
+        int inSampleSize = 1;
+
+        if (height > reqHeight || width > reqWidth) {
+            final int halfHeight = height / 2;
+            final int halfWidth = width / 2;
+
+            while ((halfHeight / inSampleSize) >= reqHeight
+                    && (halfWidth / inSampleSize) >= reqWidth) {
+                inSampleSize *= 2;
+            }
+        }
+        return inSampleSize;
     }
 
     public static class ProductoViewHolder extends RecyclerView.ViewHolder {
@@ -138,12 +157,10 @@ public class ProductoCatalogoAdapter extends RecyclerView.Adapter<ProductoCatalo
         public ProductoViewHolder(@NonNull View itemView) {
             super(itemView);
 
-            // 🚨 CORRECCIÓN 2: Mapear los nombres de ID de XML a las variables de Java
+            // IDs CORRECTOS
             ivProducto = itemView.findViewById(R.id.ivProductoCatalogo);
             tvNombreProd = itemView.findViewById(R.id.tvNombre);
             tvPrecioProd = itemView.findViewById(R.id.tvPrecio);
-
-            // Este ID sí coincidía, pero lo incluyo para asegurar
             btnAgregarCarrito = itemView.findViewById(R.id.btnAddCart);
         }
     }
