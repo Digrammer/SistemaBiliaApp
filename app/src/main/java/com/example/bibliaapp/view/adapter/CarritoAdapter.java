@@ -6,17 +6,21 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
 import android.widget.TextView;
+import android.widget.Toast; // Importar Toast
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import com.example.bibliaapp.R;
 import com.example.bibliaapp.model.CarritoItem;
+import com.example.bibliaapp.model.CarritoSingleton; // Importar CarritoSingleton
+import com.example.bibliaapp.model.Producto; // Importar Producto
 import java.util.List;
 
 public class CarritoAdapter extends RecyclerView.Adapter<CarritoAdapter.ViewHolder> {
 
-    private Context context;
-    private List<CarritoItem> carritoList;
-    private OnCarritoListener listener;
+    private final Context context;
+    private final List<CarritoItem> carritoList;
+    private final OnCarritoListener listener;
+    private final CarritoSingleton carritoSingleton; // Instancia del Singleton
 
     public interface OnCarritoListener {
         void onCantidadCambiada();
@@ -26,6 +30,7 @@ public class CarritoAdapter extends RecyclerView.Adapter<CarritoAdapter.ViewHold
         this.context = context;
         this.carritoList = carritoList;
         this.listener = listener;
+        this.carritoSingleton = CarritoSingleton.getInstance(); // Inicializar el Singleton
     }
 
     @NonNull
@@ -42,12 +47,30 @@ public class CarritoAdapter extends RecyclerView.Adapter<CarritoAdapter.ViewHold
         holder.tvCantidad.setText(String.valueOf(item.getCantidad()));
         holder.tvSubtotal.setText("S/" + String.format("%.2f", item.getSubtotal()));
 
+        // === CANDADO DE STOCK EN EL BOTÓN AUMENTAR ===
         holder.btnAumentar.setOnClickListener(v -> {
-            item.setCantidad(item.getCantidad() + 1);
-            holder.tvCantidad.setText(String.valueOf(item.getCantidad()));
-            holder.tvSubtotal.setText("S/" + String.format("%.2f", item.getSubtotal()));
-            listener.onCantidadCambiada();
+            // 1. Obtener el producto real de la DB para saber su stock
+            Producto productoReal = carritoSingleton.getProductoReal(item.getProductoId(), context);
+
+            if (productoReal != null) {
+                int stockDisponible = productoReal.getStock();
+
+                // 2. Verificar el límite
+                if (item.getCantidad() + 1 <= stockDisponible) {
+                    // Si hay stock, se aumenta
+                    item.setCantidad(item.getCantidad() + 1);
+                    holder.tvCantidad.setText(String.valueOf(item.getCantidad()));
+                    holder.tvSubtotal.setText("S/" + String.format("%.2f", item.getSubtotal()));
+                    listener.onCantidadCambiada();
+                } else {
+                    // Si se alcanza el límite, se muestra una advertencia
+                    Toast.makeText(context, "Stock máximo alcanzado para " + item.getNombre() + " (" + stockDisponible + " unidades).", Toast.LENGTH_SHORT).show();
+                }
+            } else {
+                Toast.makeText(context, "Error: Producto no encontrado.", Toast.LENGTH_SHORT).show();
+            }
         });
+        // ===========================================
 
         holder.btnDisminuir.setOnClickListener(v -> {
             if(item.getCantidad() > 1){

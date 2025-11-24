@@ -1,7 +1,6 @@
 package com.example.bibliaapp.view.adapter;
 
 import android.content.Context;
-import android.database.Cursor;
 import android.net.Uri;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -16,26 +15,23 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.bibliaapp.R;
 import com.example.bibliaapp.model.CarritoSingleton;
-import com.example.bibliaapp.model.DBHelper;
 import com.example.bibliaapp.model.Producto;
 
+import java.io.File;
 import java.util.List;
-import java.util.Map;
 
 public class ProductoAdapter extends RecyclerView.Adapter<ProductoAdapter.ProductoViewHolder> {
 
-    private final DBHelper dbHelper;
-    private final CarritoSingleton carrito;
     private final Context context;
-    private List<Map<String, Object>> productos;
+    private List<Producto> productos;
     private final boolean esVisitante;
+    private final CarritoSingleton carrito;
 
-    public ProductoAdapter(Context context, List<Map<String, Object>> productos, boolean esVisitante) {
+    public ProductoAdapter(Context context, List<Producto> productos, boolean esVisitante) {
         this.context = context;
         this.productos = productos;
         this.esVisitante = esVisitante;
-        dbHelper = new DBHelper(context);
-        carrito = CarritoSingleton.getInstance();
+        this.carrito = CarritoSingleton.getInstance();
     }
 
     @NonNull
@@ -47,37 +43,52 @@ public class ProductoAdapter extends RecyclerView.Adapter<ProductoAdapter.Produc
 
     @Override
     public void onBindViewHolder(@NonNull ProductoViewHolder holder, int position) {
-        Map<String, Object> p = productos.get(position);
+        Producto p = productos.get(position);
 
-        int idProducto = (int) p.get("id_producto");
-        String nombre = (String) p.get("nombre");
-        String imagen = (String) p.get("imagen");
-        double precio = (double) p.get("precio");
+        holder.tvNombre.setText(p.getNombre());
+        holder.tvPrecio.setText(String.format("S/ %.2f", p.getPrecio()));
 
-        holder.tvNombre.setText(nombre);
-        holder.tvPrecio.setText(String.format("S/ %.2f", precio));
+        // --- LÓGICA DE IMAGEN HÍBRIDA ---
+        String imagenStr = p.getImagen();
+        boolean imagenCargada = false;
 
-        if (imagen != null && !imagen.isEmpty()) {
-            try {
-                Uri imageUri = Uri.parse(imagen);
-                holder.ivProducto.setImageURI(imageUri);
-            } catch (Exception e) {
-                int resId = context.getResources().getIdentifier(imagen, "drawable", context.getPackageName());
+        if (imagenStr != null && !imagenStr.isEmpty()) {
+            // 1. Intentar cargar como ruta de archivo (productos nuevos)
+            File imgFile = new File(imagenStr);
+            if (imgFile.exists()) {
+                holder.ivProducto.setImageURI(Uri.fromFile(imgFile));
+                imagenCargada = true;
+            } else {
+                // 2. Intentar cargar como recurso drawable (productos iniciales)
+                int resId = context.getResources().getIdentifier(imagenStr, "drawable", context.getPackageName());
                 if (resId != 0) {
                     holder.ivProducto.setImageResource(resId);
-                } else {
-                    holder.ivProducto.setImageResource(R.drawable.placeholder);
+                    imagenCargada = true;
                 }
             }
-        } else {
-            holder.ivProducto.setImageResource(R.drawable.placeholder);
         }
 
+        if (!imagenCargada) {
+            holder.ivProducto.setImageResource(R.drawable.placeholder);
+        }
+        // -----------------------------------------------------
+
+        // Lógica de Visitante y Stock
         if (esVisitante) {
             holder.btnAddCart.setVisibility(View.GONE);
         } else {
             holder.btnAddCart.setVisibility(View.VISIBLE);
-            holder.btnAddCart.setOnClickListener(v -> agregarProductoAlCarrito(idProducto));
+
+            // Control visual del stock
+            if (p.getStock() <= 0) {
+                holder.btnAddCart.setEnabled(false);
+                holder.btnAddCart.setText("Sin Stock");
+            } else {
+                holder.btnAddCart.setEnabled(true);
+                holder.btnAddCart.setText("Añadir");
+                // Listener que llama al método de validación
+                holder.btnAddCart.setOnClickListener(v -> agregarProductoAlCarrito(p));
+            }
         }
     }
 
@@ -86,56 +97,33 @@ public class ProductoAdapter extends RecyclerView.Adapter<ProductoAdapter.Produc
         return productos.size();
     }
 
-    public void updateList(List<Map<String, Object>> nuevaLista) {
+    public void updateList(List<Producto> nuevaLista) {
         this.productos = nuevaLista;
         notifyDataSetChanged();
     }
 
-    private Producto cursorToProducto(Cursor cursor) {
-        if (cursor != null && cursor.moveToFirst()) {
-            try {
-                int id = cursor.getInt(cursor.getColumnIndexOrThrow("id_producto"));
-                String nombre = cursor.getString(cursor.getColumnIndexOrThrow("nombre"));
-                double precio = cursor.getDouble(cursor.getColumnIndexOrThrow("precio"));
-                String imagen = cursor.getString(cursor.getColumnIndexOrThrow("imagen"));
-                int idCategoria = cursor.getInt(cursor.getColumnIndexOrThrow("id_categoria"));
-                int stock = cursor.getInt(cursor.getColumnIndexOrThrow("stock"));
-                cursor.close();
-                return new Producto(id, nombre, precio, imagen, idCategoria, stock);
-            } catch (IllegalArgumentException e) {
-                if (cursor != null) cursor.close();
-                return null;
-            }
-        }
-        if (cursor != null) cursor.close();
-        return null;
-    }
+    // --- LÓGICA DE STOCK Y ADICIÓN AL CARRITO (CORREGIDA) ---
+    private void agregarProductoAlCarrito(Producto producto) {
+        int id = producto.getId();
+        int stockDisponible = producto.getStock();
 
+        // Obtiene la cantidad que ya existe en el carrito
+        int cantidadEnCarrito = carrito.getCantidadProducto(id);
 
-    public boolean agregarProductoAlCarrito(int id) {
-        // CORRECCIÓN: Obtenemos el Cursor y lo convertimos a Producto
-        Cursor cursor = dbHelper.getProductoById(id);
-        Producto producto = cursorToProducto(cursor);
-
-        if (producto != null) {
-            int stockDisponible = producto.getStock();
-            int cantidadEnCarrito = carrito.getCantidadProducto(id);
-
-            if (stockDisponible > cantidadEnCarrito) {
-                boolean exito = carrito.agregarProducto(producto, stockDisponible);
-                if (exito) {
-                    Toast.makeText(context, "Producto añadido al carrito", Toast.LENGTH_SHORT).show();
-                } else {
-                    Toast.makeText(context, "Error interno al añadir al carrito", Toast.LENGTH_SHORT).show();
-                }
-                return exito;
+        // Validación: Solo se permite añadir si la cantidad actual + 1 es menor o igual al stock
+        if (cantidadEnCarrito + 1 <= stockDisponible) {
+            // Llamamos al método simplificado del Singleton
+            boolean exito = carrito.agregarProducto(producto);
+            if (exito) {
+                Toast.makeText(context, "Añadido: " + producto.getNombre(), Toast.LENGTH_SHORT).show();
             } else {
-                Toast.makeText(context, "Stock insuficiente o límite de stock alcanzado en carrito", Toast.LENGTH_SHORT).show();
-                return false;
+                // Este caso se daría solo si hay un error lógico inesperado
+                Toast.makeText(context, "No se pudo añadir al carrito.", Toast.LENGTH_SHORT).show();
             }
+        } else {
+            // Bloqueo estricto y mensaje de advertencia al usuario
+            Toast.makeText(context, "¡Stock insuficiente! Ya tienes el máximo (" + stockDisponible + ") en tu carrito.", Toast.LENGTH_LONG).show();
         }
-        Toast.makeText(context, "Error: Producto no encontrado en la base de datos", Toast.LENGTH_SHORT).show();
-        return false;
     }
 
     public static class ProductoViewHolder extends RecyclerView.ViewHolder {

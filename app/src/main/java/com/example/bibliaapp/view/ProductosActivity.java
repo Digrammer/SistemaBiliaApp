@@ -1,7 +1,6 @@
 package com.example.bibliaapp.view;
 
 import android.content.Intent;
-import android.database.Cursor;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
@@ -69,6 +68,7 @@ public class ProductosActivity extends AppCompatActivity
 
         navView.setNavigationItemSelectedListener(this);
 
+        // Inicialización de DBHelper con el Contexto
         dbHelper = new DBHelper(this);
 
         llCategorias = findViewById(R.id.llCategorias);
@@ -76,25 +76,17 @@ public class ProductosActivity extends AppCompatActivity
 
         rvProductos.setLayoutManager(new GridLayoutManager(this, 2));
 
+        // Asumo que MenuUtil existe y funciona
         MenuUtil.configurarMenuPorRol(this, navView);
 
-        // --- OPTIMIZACIÓN CRÍTICA DE VELOCIDAD: Iniciar carga en hilo de fondo ---
+        // Iniciar carga en hilo de fondo con manejo de errores
         iniciarCargaDeDatos();
-        // --------------------------------------------------------------------------
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-
-        // La configuración del menú debe mantenerse para reflejar el estado del login
         MenuUtil.configurarMenuPorRol(this, navView);
-
-        // --- CÓDIGO ELIMINADO: Ya no recargamos productos aquí para evitar el "doble-carga" visible
-        // recargarProductosAsincrono(categoriaActual.equals("Todas las categorías") ? null : categoriaActual);
-        // --- FIN CÓDIGO ELIMINADO ---
-
-        // Solo resaltamos la categoría, que es una operación ligera
         resaltarCategoria(categoriaActual);
     }
 
@@ -104,25 +96,51 @@ public class ProductosActivity extends AppCompatActivity
     private void iniciarCargaDeDatos() {
 
         new Thread(() -> {
-            // --- HILO DE FONDO: Realiza la operación pesada de DB ---
-            List<String> categorias = dbHelper.getAllCategorias();
-            categorias.add(0, "Todas las categorías");
+            List<String> categorias = new ArrayList<>();
+            List<Producto> listaProductosInicial = new ArrayList<>();
+            boolean cargaExitosa = false;
 
-            String nombreCategoriaCargaInicial = categoriaActual.equals("Todas las categorías") ? null : categoriaActual;
-            final List<Producto> listaProductosInicial = obtenerProductosDesdeDB(nombreCategoriaCargaInicial);
+            try {
+                // --- HILO DE FONDO: Realiza la operación pesada de DB ---
+
+                // 1. Cargar Categorías
+                categorias = dbHelper.getAllCategorias();
+                categorias.add(0, "Todas las categorías");
+
+                // 2. Cargar Productos Iniciales (USA EL MÉTODO SEGURO)
+                // Si es "Todas las categorías", usa getAllProductosList
+                listaProductosInicial = dbHelper.getAllProductosList();
+
+                cargaExitosa = true; // Si llegamos aquí, la DB se abrió y leyó correctamente
+
+            } catch (Exception e) {
+                e.printStackTrace();
+                uiHandler.post(() -> {
+                    Toast.makeText(this, "Error al cargar datos iniciales. Verifique la base de datos.", Toast.LENGTH_LONG).show();
+                });
+            }
 
             // --- HILO PRINCIPAL: Actualiza la interfaz de usuario ---
+            final List<String> finalCategorias = categorias;
+            final List<Producto> finalListaProductosInicial = listaProductosInicial;
+            final boolean finalCargaExitosa = cargaExitosa;
+
             uiHandler.post(() -> {
                 // 1. Inicializa los botones de categoría
-                inicializarBotonesCategorias(categorias);
+                if (finalCargaExitosa) {
+                    inicializarBotonesCategorias(finalCategorias);
+                } else {
+                    List<String> categoriasFallo = new ArrayList<>();
+                    categoriasFallo.add("Todas las categorías");
+                    inicializarBotonesCategorias(categoriasFallo);
+                }
 
                 // 2. Inicializa el adaptador de productos
-                adapter = new ProductoCatalogoAdapter(this, listaProductosInicial);
+                adapter = new ProductoCatalogoAdapter(this, finalListaProductosInicial);
                 rvProductos.setAdapter(adapter);
 
                 // 3. Resalta la categoría actual
                 resaltarCategoria(categoriaActual);
-
             });
         }).start();
     }
@@ -161,52 +179,35 @@ public class ProductosActivity extends AppCompatActivity
 
     /**
      * Maneja la recarga de productos al cambiar de categoría, ejecutándose en segundo plano.
+     * Ahora usa el método seguro getProductosByCategoriaList del DBHelper.
      */
     private void recargarProductosAsincrono(String categoriaNombre) {
         new Thread(() -> {
-            final List<Producto> listaProductos = obtenerProductosDesdeDB(categoriaNombre);
+            List<Producto> listaProductos = new ArrayList<>();
+            try {
+                if (categoriaNombre == null) {
+                    listaProductos = dbHelper.getAllProductosList(); // Todos
+                } else {
+                    int idCategoria = dbHelper.getCategoriaIdByNombre(categoriaNombre);
+                    if (idCategoria != -1) {
+                        listaProductos = dbHelper.getProductosByCategoriaList(idCategoria); // Filtrado
+                    }
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
 
             // Volver al hilo principal para actualizar el adaptador
+            final List<Producto> finalListaProductos = listaProductos;
             uiHandler.post(() -> {
                 if (adapter != null) {
-                    adapter.updateList(listaProductos);
+                    adapter.updateList(finalListaProductos);
                 }
             });
         }).start();
     }
 
-    /**
-     * Función que maneja la lógica de la base de datos y mapeo (PESADA, en HILO DE FONDO).
-     */
-    private List<Producto> obtenerProductosDesdeDB(String categoriaNombre) {
-        List<Producto> listaProductos = new ArrayList<>();
-        Cursor cursor = null;
-
-        try {
-            if (categoriaNombre == null) {
-                cursor = dbHelper.getAllProductos();
-            } else {
-                int idCategoria = dbHelper.getCategoriaIdByNombre(categoriaNombre);
-                if (idCategoria != -1) {
-                    cursor = dbHelper.getProductosByCategoria(idCategoria);
-                }
-            }
-
-            if (cursor != null && cursor.moveToFirst()) {
-                do {
-                    listaProductos.add(cursorToProducto(cursor));
-                } while (cursor.moveToNext());
-            }
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
-        }
-        return listaProductos;
-    }
+    // 🛑 SE ELIMINARON obtenerProductosDesdeDB y cursorToProducto (Ya no son necesarios)
 
     private void resaltarCategoria(String nombreCategoria) {
         for (int i = 0; i < llCategorias.getChildCount(); i++) {
@@ -223,27 +224,9 @@ public class ProductosActivity extends AppCompatActivity
         }
     }
 
-
-    private Producto cursorToProducto(Cursor cursor) {
-        int id = cursor.getInt(cursor.getColumnIndexOrThrow("id_producto"));
-        String nombre = cursor.getString(cursor.getColumnIndexOrThrow("nombre"));
-        double precio = cursor.getDouble(cursor.getColumnIndexOrThrow("precio"));
-        String imagen = cursor.getString(cursor.getColumnIndexOrThrow("imagen"));
-        int stock = cursor.getInt(cursor.getColumnIndexOrThrow("stock"));
-
-        int idCategoria = 0;
-        try {
-            idCategoria = cursor.getInt(cursor.getColumnIndexOrThrow("id_categoria"));
-        } catch (IllegalArgumentException e) {
-            // Manejo silencioso de la excepción si la columna no existe
-        }
-
-        return new Producto(id, nombre, precio, imagen, stock, idCategoria);
-    }
-
-
     @Override
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
+        // Asegúrate de que MenuUtil esté disponible
         boolean resultado = MenuUtil.manejarNavegacion(this, item.getItemId());
         drawerLayout.closeDrawer(GravityCompat.START);
         return resultado;

@@ -5,9 +5,7 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
-
 import androidx.annotation.Nullable;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -16,7 +14,6 @@ public class DBHelper extends SQLiteOpenHelper {
     private static final String DB_NAME = "BibliaAppDB";
     private static final int DB_VERSION = 2;
 
-    // CAMBIO: public para acceso externo si es necesario
     public static final String TABLE_USUARIOS = "usuarios";
     public static final String COL_USUARIO_ID = "id_usuario";
     public static final String COL_USUARIO_NOMBRE = "nombre";
@@ -28,10 +25,9 @@ public class DBHelper extends SQLiteOpenHelper {
     public static final String COL_USUARIO_DIRECCION = "direccion";
     public static final String COL_USUARIO_ROL = "rol";
 
-    // 🛑 CAMBIOS IMPORTANTES: CONSTANTES A PUBLIC
     public static final String TABLE_PRODUCTOS = "productos";
     public static final String TABLE_CATEGORIAS = "categorias";
-    public static final String TABLE_PEDIDOS = "pedidos"; // Necesario para BoletaActivity
+    public static final String TABLE_PEDIDOS = "pedidos";
     public static final String TABLE_DETALLE_PEDIDO = "detalle_pedido";
     private static final String TABLE_BOLETAS = "boletas";
 
@@ -47,7 +43,6 @@ public class DBHelper extends SQLiteOpenHelper {
 
     @Override
     public void onCreate(SQLiteDatabase db) {
-        // Creación de la tabla USUARIOS
         db.execSQL("CREATE TABLE " + TABLE_USUARIOS + " (" +
                 COL_USUARIO_ID + " INTEGER PRIMARY KEY AUTOINCREMENT," +
                 COL_USUARIO_NOMBRE + " TEXT NOT NULL," +
@@ -61,13 +56,11 @@ public class DBHelper extends SQLiteOpenHelper {
                 ");");
         db.execSQL("CREATE INDEX idx_usuarios_correo ON " + TABLE_USUARIOS + "(" + COL_USUARIO_CORREO + ");");
 
-        // Creación de la tabla CATEGORIAS
         db.execSQL("CREATE TABLE " + TABLE_CATEGORIAS + " (" +
                 "id_categoria INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "nombre TEXT NOT NULL UNIQUE" +
                 ");");
 
-        // Creación de la tabla PRODUCTOS
         db.execSQL("CREATE TABLE " + TABLE_PRODUCTOS + " (" +
                 "id_producto INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "nombre TEXT NOT NULL," +
@@ -80,7 +73,6 @@ public class DBHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX idx_productos_categoria ON " + TABLE_PRODUCTOS + "(id_categoria);");
         db.execSQL("CREATE INDEX idx_productos_nombre ON " + TABLE_PRODUCTOS + "(nombre);");
 
-        // Creación de la tabla PEDIDOS
         db.execSQL("CREATE TABLE " + TABLE_PEDIDOS + " (" +
                 "id_pedido INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "codigo TEXT NOT NULL UNIQUE," +
@@ -95,7 +87,6 @@ public class DBHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX idx_pedidos_usuario ON " + TABLE_PEDIDOS + "(id_usuario);");
         db.execSQL("CREATE INDEX idx_pedidos_codigo ON " + TABLE_PEDIDOS + "(codigo);");
 
-        // Creación de la tabla DETALLE_PEDIDO
         db.execSQL("CREATE TABLE " + TABLE_DETALLE_PEDIDO + " (" +
                 "id_detalle INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "id_pedido INTEGER NOT NULL," +
@@ -108,7 +99,6 @@ public class DBHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX idx_detalle_pedido_pedido ON " + TABLE_DETALLE_PEDIDO + "(id_pedido);");
         db.execSQL("CREATE INDEX idx_detalle_pedido_producto ON " + TABLE_DETALLE_PEDIDO + "(id_producto);");
 
-        // Creación de la tabla BOLETAS
         db.execSQL("CREATE TABLE " + TABLE_BOLETAS + " (" +
                 "id_boleta INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "id_pedido INTEGER NOT NULL," +
@@ -119,7 +109,6 @@ public class DBHelper extends SQLiteOpenHelper {
                 ");");
         db.execSQL("CREATE INDEX idx_boletas_pedido ON " + TABLE_BOLETAS + "(id_pedido);");
 
-        // Creación de la tabla empleados
         db.execSQL("CREATE TABLE empleados (" +
                 "id_empleado INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "nombre TEXT NOT NULL," +
@@ -127,7 +116,6 @@ public class DBHelper extends SQLiteOpenHelper {
                 "telefono TEXT" +
                 ");");
 
-        // --- INICIALIZACIÓN DE DATOS ---
         checkAndInsertInitialCategories(db);
         insertInitialProducts(db);
         checkAndInsertInitialUsers(db);
@@ -212,8 +200,6 @@ public class DBHelper extends SQLiteOpenHelper {
         return db.insert(TABLE_USUARIOS, null, cv);
     }
 
-
-    // --- MÉTODOS PÚBLICOS Y EXISTENTES ---
 
     public int getProductoCount() {
         SQLiteDatabase db = this.getReadableDatabase();
@@ -421,6 +407,119 @@ public class DBHelper extends SQLiteOpenHelper {
         return db.rawQuery("SELECT * FROM " + TABLE_PRODUCTOS + " WHERE id_producto = ?", new String[]{String.valueOf(id_producto)});
     }
 
+    public Producto getProductoByIdObject(int id) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = null;
+        Producto producto = null;
+
+        try {
+            cursor = db.query(
+                    TABLE_PRODUCTOS,
+                    new String[] {"id_producto", "nombre", "precio", "imagen", "id_categoria", "stock"},
+                    "id_producto" + "=?",
+                    new String[]{String.valueOf(id)},
+                    null, null, null, null
+            );
+
+            if (cursor != null && cursor.moveToFirst()) {
+                int idIndex = cursor.getColumnIndexOrThrow("id_producto");
+                int nombreIndex = cursor.getColumnIndexOrThrow("nombre");
+                int precioIndex = cursor.getColumnIndexOrThrow("precio");
+                int imagenIndex = cursor.getColumnIndexOrThrow("imagen");
+                int idCategoriaIndex = cursor.getColumnIndexOrThrow("id_categoria");
+                int stockIndex = cursor.getColumnIndexOrThrow("stock");
+
+                int prodId = cursor.getInt(idIndex);
+                String nombre = cursor.getString(nombreIndex);
+                double precio = cursor.getDouble(precioIndex);
+                String imagen = cursor.getString(imagenIndex);
+                int idCategoria = cursor.getInt(idCategoriaIndex);
+                int stock = cursor.getInt(stockIndex);
+
+                producto = new Producto(prodId, nombre, precio, imagen, stock, idCategoria);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            if (cursor != null) cursor.close();
+        }
+        return producto;
+    }
+
+    public List<Producto> getAllProductosList() {
+        List<Producto> listaProductos = new ArrayList<>();
+        String selectQuery = "SELECT * FROM " + TABLE_PRODUCTOS;
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.rawQuery(selectQuery, null);
+
+        if (cursor != null && cursor.moveToFirst()) {
+            int idIndex = cursor.getColumnIndexOrThrow("id_producto");
+            int nombreIndex = cursor.getColumnIndexOrThrow("nombre");
+            int precioIndex = cursor.getColumnIndexOrThrow("precio");
+            int imagenIndex = cursor.getColumnIndexOrThrow("imagen");
+            int idCategoriaIndex = cursor.getColumnIndexOrThrow("id_categoria");
+            int stockIndex = cursor.getColumnIndexOrThrow("stock");
+
+            do {
+                try {
+                    int prodId = cursor.getInt(idIndex);
+                    String nombre = cursor.getString(nombreIndex);
+                    double precio = cursor.getDouble(precioIndex);
+                    String imagen = cursor.getString(imagenIndex);
+                    int idCategoria = cursor.getInt(idCategoriaIndex);
+                    int stock = cursor.getInt(stockIndex);
+
+                    Producto producto = new Producto(prodId, nombre, precio, imagen, stock, idCategoria);
+                    listaProductos.add(producto);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            } while (cursor.moveToNext());
+        }
+
+        if (cursor != null) {
+            cursor.close();
+        }
+        return listaProductos;
+    }
+
+    public List<Producto> getProductosByCategoriaList(int id_categoria) {
+        List<Producto> listaProductos = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_PRODUCTOS + " WHERE id_categoria = ?", new String[]{String.valueOf(id_categoria)});
+
+        if (cursor != null && cursor.moveToFirst()) {
+            int idIndex = cursor.getColumnIndexOrThrow("id_producto");
+            int nombreIndex = cursor.getColumnIndexOrThrow("nombre");
+            int precioIndex = cursor.getColumnIndexOrThrow("precio");
+            int imagenIndex = cursor.getColumnIndexOrThrow("imagen");
+            int idCategoriaIndex = cursor.getColumnIndexOrThrow("id_categoria");
+            int stockIndex = cursor.getColumnIndexOrThrow("stock");
+
+            do {
+                try {
+                    int prodId = cursor.getInt(idIndex);
+                    String nombre = cursor.getString(nombreIndex);
+                    double precio = cursor.getDouble(precioIndex);
+                    String imagen = cursor.getString(imagenIndex);
+                    int stock = cursor.getInt(stockIndex);
+                    int idCategoria = cursor.getInt(idCategoriaIndex);
+
+                    Producto producto = new Producto(prodId, nombre, precio, imagen, stock, idCategoria);
+                    listaProductos.add(producto);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            } while (cursor.moveToNext());
+        }
+
+        if (cursor != null) {
+            cursor.close();
+        }
+        return listaProductos;
+    }
+
+
     public Cursor getAllProductos() {
         SQLiteDatabase db = this.getReadableDatabase();
         return db.rawQuery("SELECT * FROM " + TABLE_PRODUCTOS, null);
@@ -507,10 +606,6 @@ public class DBHelper extends SQLiteOpenHelper {
         return db.rawQuery("SELECT * FROM " + TABLE_BOLETAS + " WHERE id_pedido = ?", new String[]{String.valueOf(id_pedido)});
     }
 
-    // =========================================================================
-    // === MÉTODOS AÑADIDOS PARA EL FLUJO DE CHECKOUT (SIN MODIFICAR LO EXISTENTE) ===
-    // =========================================================================
-
     public long guardarPedidoCompleto(Pedido pedido, List<CarritoItem> items) {
         SQLiteDatabase db = this.getWritableDatabase();
         db.beginTransaction();
@@ -574,16 +669,6 @@ public class DBHelper extends SQLiteOpenHelper {
         return filasAfectadas > 0;
     }
 
-    // =========================================================================
-    // === NUEVOS MÉTODOS AÑADIDOS PARA RESOLVER "PRODUCTO DESCONOCIDO" EN BOLETA ===
-    // =========================================================================
-
-    /**
-     * Obtiene un objeto Producto completo de la BD usando su ID.
-     * Este método es crucial para mapear el ID del CarritoItem al nombre real.
-     * @param idProducto El ID del producto a buscar.
-     * @return Objeto Producto con todos sus datos, o null si no se encuentra.
-     */
     public Producto getProductoByIdModel(int idProducto) {
         SQLiteDatabase db = this.getReadableDatabase();
         Cursor cursor = null;
@@ -612,11 +697,6 @@ public class DBHelper extends SQLiteOpenHelper {
         return producto;
     }
 
-    /**
-     * Obtiene el detalle de un pedido haciendo JOIN con la tabla de productos para obtener el nombre y precio.
-     * @param id_pedido El ID interno (INTEGER) del pedido.
-     * @return Cursor con los campos: id_producto, cantidad, subtotal Y nombre, precio del producto.
-     */
     public Cursor getDetallePedidoConNombre(long id_pedido) {
         SQLiteDatabase db = this.getReadableDatabase();
         String query = "SELECT " +

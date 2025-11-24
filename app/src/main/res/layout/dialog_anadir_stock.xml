@@ -8,33 +8,35 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Editar Producto"
+        android:text="Añadir Stock"
         android:textSize="20sp"
         android:textStyle="bold"
         android:textColor="@android:color/black"
         android:layout_marginBottom="10dp"/>
 
-    <EditText
-        android:id="@+id/etDialogNombre"
+    <TextView
+        android:id="@+id/tvProductoStockActual"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Nuevo Nombre"
-        android:inputType="textCapSentences"
-        android:layout_marginBottom="10dp"/>
+        android:textSize="16sp"
+        android:textColor="@android:color/darker_gray"
+        android:layout_marginBottom="10dp"
+        android:text="Producto: [Nombre]\nStock Actual: [Cantidad]"/>
 
     <EditText
-        android:id="@+id/etDialogPrecio"
+        android:id="@+id/etCantidadStock"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Nuevo Precio (S/)"
-        android:inputType="numberDecimal"
+        android:hint="Cantidad a Añadir"
+        android:inputType="number"
+        android:maxLength="4"
         android:layout_marginBottom="20dp"/>
 
     <Button
-        android:id="@+id/btnDialogGuardar"
+        android:id="@+id/btnConfirmarStock"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="GUARDAR CAMBIOS"
+        android:text="AÑADIR AL STOCK"
         android:backgroundTint="@color/yourPrimaryColor"
         android:textColor="@android:color/white"/>
 
