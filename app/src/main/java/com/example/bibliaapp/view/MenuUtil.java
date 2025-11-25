@@ -3,14 +3,15 @@ package com.example.bibliaapp.view;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Toast;
 
 import com.example.bibliaapp.R;
+import com.example.bibliaapp.model.SharedPreferencesManager; // CLAVE: Importamos el gestor centralizado
 import com.google.android.material.navigation.NavigationView;
 
+// Importaciones de Activities (se mantienen igual)
 import com.example.bibliaapp.view.GestionProductosActivity;
 import com.example.bibliaapp.view.CarritoActivity;
 import com.example.bibliaapp.view.GestionUsuariosActivity;
@@ -23,27 +24,25 @@ import com.example.bibliaapp.view.ProductosActivity;
 
 public class MenuUtil {
 
-    private static final String SHARED_PREFS_NAME = "BibliaAppPrefs";
-    private static final String KEY_LOGGED_USER_EMAIL = "loggedUserEmail";
-    private static final String KEY_LOGGED_USER_ROL = "loggedUserRol";
+    // Solo mantenemos la constante del rol de visitante
     private static final String ROL_VISITANTE = "visitante";
 
+    // Reemplaza la lógica de lectura manual de sesión por el gestor
     private static String getRolUsuario(Context context) {
-        SharedPreferences sharedPreferences = context.getSharedPreferences(SHARED_PREFS_NAME, Context.MODE_PRIVATE);
-        return sharedPreferences.getString(KEY_LOGGED_USER_ROL, ROL_VISITANTE);
+        return SharedPreferencesManager.getInstance(context).getUserRol();
     }
 
     public static void configurarMenuPorRol(Context context, NavigationView navigationView) {
 
         Menu menu = navigationView.getMenu();
 
-        // 1. OBTENER ROL
+        // 1. OBTENER ROL Y ESTADO DE SESIÓN USANDO EL GESTOR
         String rol = getRolUsuario(context);
-        boolean esLogueado = !rol.equals(ROL_VISITANTE);
+        // Consideramos logueado a cualquiera que no sea 'visitante'
+        boolean esLogueado = !rol.equalsIgnoreCase(ROL_VISITANTE);
 
         // 2. CONFIGURAR ÍTEMS COMUNES
         MenuItem navLogout = menu.findItem(R.id.nav_logout);
-        MenuItem navPedidos = menu.findItem(R.id.nav_pedidos);
 
         // Items siempre visibles para todos
         menu.findItem(R.id.nav_inicio).setVisible(true);
@@ -55,42 +54,48 @@ public class MenuUtil {
                 navLogout.setTitle("Cerrar Sesión");
                 navLogout.setIcon(android.R.drawable.ic_lock_power_off);
             }
-            // Los pedidos solo son visibles si el usuario está logueado
-            if (navPedidos != null) navPedidos.setVisible(true);
         } else {
             if (navLogout != null) {
                 navLogout.setTitle("Iniciar Sesión");
                 navLogout.setIcon(android.R.drawable.ic_menu_add);
             }
-            // Los pedidos deben estar ocultos para visitantes
-            if (navPedidos != null) navPedidos.setVisible(false);
         }
 
-        // 3. APAGAR GRUPOS POR DEFECTO
+        // 3. OCULTAR TODOS LOS GRUPOS POR DEFECTO
         menu.setGroupVisible(R.id.grupo_gestion, false);
         menu.setGroupVisible(R.id.grupo_reportes, false);
 
+        // Elementos que deben manejarse individualmente
         MenuItem navGestionUsuarios = menu.findItem(R.id.nav_crear_usuario);
         if (navGestionUsuarios != null) navGestionUsuarios.setVisible(false);
+        MenuItem navPedidos = menu.findItem(R.id.nav_pedidos);
+        if (navPedidos != null) navPedidos.setVisible(false);
 
-        // 4. ENCENDER SEGÚN ROL
-        switch (rol) {
-            case "vendedor":
-                menu.setGroupVisible(R.id.grupo_gestion, true);
-                break;
 
+        // 4. ENCENDER SEGÚN ROL Y NUEVO REQUISITO DE PEDIDOS
+        switch (rol.toLowerCase()) {
             case "administrador":
+                // Administrador ve TODO
                 menu.setGroupVisible(R.id.grupo_gestion, true);
                 menu.setGroupVisible(R.id.grupo_reportes, true);
                 if (navGestionUsuarios != null) navGestionUsuarios.setVisible(true);
+                if (navPedidos != null) navPedidos.setVisible(true);
+                break;
+
+            case "vendedor":
+                // Vendedor ve Gestión (Ventas/Productos) y Pedidos
+                menu.setGroupVisible(R.id.grupo_gestion, true);
+                if (navPedidos != null) navPedidos.setVisible(true);
                 break;
 
             case "cliente":
-                // Solo tiene acceso a los ítems del grupo_general
+                // Cliente solo ve Pedidos (y los comunes: Inicio, Productos)
+                if (navPedidos != null) navPedidos.setVisible(true);
                 break;
 
             case ROL_VISITANTE:
-                // Solo tiene acceso a Inicio, Productos e Iniciar Sesión
+                // Visitante solo ve Inicio, Productos y Pedidos (Según tu requisito)
+                if (navPedidos != null) navPedidos.setVisible(true);
                 break;
         }
     }
@@ -101,12 +106,12 @@ public class MenuUtil {
 
         // --- LOGOUT / LOGIN ---
         if (id == R.id.nav_logout) {
-            if (rol.equals(ROL_VISITANTE)) {
+            if (rol.equalsIgnoreCase(ROL_VISITANTE)) {
+                // Si es visitante, va a Login
                 intent = new Intent(activity, LoginActivity.class);
             } else {
-                // Cerrar sesión
-                SharedPreferences prefs = activity.getSharedPreferences(SHARED_PREFS_NAME, Context.MODE_PRIVATE);
-                prefs.edit().putString(KEY_LOGGED_USER_EMAIL, null).putString(KEY_LOGGED_USER_ROL, ROL_VISITANTE).apply();
+                // Si está logueado, cierra sesión usando el gestor centralizado
+                SharedPreferencesManager.getInstance(activity).clearSession();
 
                 intent = new Intent(activity, LoginActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
@@ -130,8 +135,10 @@ public class MenuUtil {
 
         // --- Rutas Restringidas (Pedidos) ---
         else if (id == R.id.nav_pedidos) {
-            // Solo logueados (cliente, vendedor, administrador) pueden ver pedidos
-            if (!rol.equals(ROL_VISITANTE)) {
+            // Permitimos ver pedidos si es cualquier rol logueado (cliente, vendedor, administrador)
+            // Ya que el visitante no tiene ID, lo dejamos restringido a logueados por seguridad,
+            // aunque el menú esté visible.
+            if (!rol.equalsIgnoreCase(ROL_VISITANTE)) {
                 if (!(activity instanceof PedidosActivity)) {
                     intent = new Intent(activity, PedidosActivity.class);
                 }
@@ -142,7 +149,7 @@ public class MenuUtil {
 
         // --- Rutas Administrativas y de Venta ---
         else if (id == R.id.nav_ventas_fisicas) {
-            if (rol.equals("vendedor") || rol.equals("administrador")) {
+            if (rol.equalsIgnoreCase("vendedor") || rol.equalsIgnoreCase("administrador")) {
                 if (!(activity instanceof VentasFisicasActivity)) {
                     intent = new Intent(activity, VentasFisicasActivity.class);
                 }
@@ -151,7 +158,7 @@ public class MenuUtil {
             }
         }
         else if (id == R.id.nav_configuracion) { // Gestión de Productos
-            if (rol.equals("vendedor") || rol.equals("administrador")) {
+            if (rol.equalsIgnoreCase("vendedor") || rol.equalsIgnoreCase("administrador")) {
                 if (!(activity instanceof GestionProductosActivity)) {
                     intent = new Intent(activity, GestionProductosActivity.class);
                 }
@@ -160,7 +167,7 @@ public class MenuUtil {
             }
         }
         else if (id == R.id.nav_crear_usuario) { // Gestión de Usuarios
-            if (rol.equals("administrador")) {
+            if (rol.equalsIgnoreCase("administrador")) {
                 if (!(activity instanceof GestionUsuariosActivity)) {
                     intent = new Intent(activity, GestionUsuariosActivity.class);
                 }
@@ -169,7 +176,7 @@ public class MenuUtil {
             }
         }
         else if (id == R.id.nav_reportes) {
-            if (rol.equals("administrador")) {
+            if (rol.equalsIgnoreCase("administrador")) {
                 if (!(activity instanceof ReportesActivity)) {
                     intent = new Intent(activity, ReportesActivity.class);
                 }

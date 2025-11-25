@@ -18,12 +18,26 @@ import com.example.bibliaapp.model.DBHelper;
 import com.example.bibliaapp.model.Pedido;
 import com.example.bibliaapp.model.PedidoSingleton;
 
+// ******************************************************
+// ** IMPORTACIONES CLAVE PARA EL MANEJO Y FORMATO DE FECHAS **
+// ******************************************************
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+// ******************************************************
+
 public class BoletaActivity extends AppCompatActivity {
 
     private static final String TAG = "BoletaActivity";
     private Button btnEntregaEnTienda, btnEntregaDelivery;
     private DBHelper dbHelper;
-    private TextView tvFechaPedido; // <-- [CAMBIO 1] Declaración del nuevo TextView
+    private TextView tvFechaPedido;
+
+    // Constante para el formato de fecha que viene de la DB (Ejemplo: YYYY-MM-DD HH:MM:SS)
+    private static final String DB_DATE_FORMAT = "yyyy-MM-dd HH:mm:ss";
+    // Constante para el formato de fecha legible que quieres mostrar (Ejemplo: 24 de Noviembre de 2025)
+    private static final String DISPLAY_DATE_FORMAT = "dd 'de' MMMM 'de' yyyy";
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -39,9 +53,8 @@ public class BoletaActivity extends AppCompatActivity {
 
         btnEntregaEnTienda = findViewById(R.id.btnEntregaEnTienda);
         btnEntregaDelivery = findViewById(R.id.btnEntregaDelivery);
-        tvFechaPedido = findViewById(R.id.tvFechaPedido); // <-- [CAMBIO 2] Inicialización del nuevo TextView
+        tvFechaPedido = findViewById(R.id.tvFechaPedido);
 
-        // El ID que pasa el checkout es el CÓDIGO de 6 dígitos
         int idPedidoCodigo = getIntent().getIntExtra("idPedido", -1);
         final Pedido pedido = PedidoSingleton.getInstance().getPedidoById(idPedidoCodigo);
 
@@ -53,32 +66,52 @@ public class BoletaActivity extends AppCompatActivity {
             // --- 1. CABECERA (CON CONSULTA DE FECHA) ---
             sb.append("Boleta #").append(pedido.getIdPedido()).append("\n");
 
-            // 🛑 [CAMBIO 3] Lógica para obtener y mostrar la fecha usando el nuevo método de DBHelper
+            // 🛑 Lógica para obtener, formatear y mostrar la fecha
             long idPedidoDb = getDbIdFromCodigo(idPedidoCodigo);
-            String fechaPedido = "Fecha no disponible";
+            String fechaPedidoTexto = "Fecha no disponible";
 
             if (idPedidoDb != -1) {
                 Cursor cursorInfo = null;
+                String dbDateString = null;
                 try {
-                    // Usamos el método añadido al DBHelper
                     cursorInfo = dbHelper.getPedidoInfoById(idPedidoDb);
                     if (cursorInfo != null && cursorInfo.moveToFirst()) {
-                        fechaPedido = cursorInfo.getString(cursorInfo.getColumnIndexOrThrow("fecha"));
-
-                        // Modificación: Corta para dejar SOLO la fecha (YYYY-MM-DD)
-                        fechaPedido = fechaPedido.substring(0, 10);
+                        // Obtenemos la fecha tal como está en la DB
+                        dbDateString = cursorInfo.getString(cursorInfo.getColumnIndexOrThrow("fecha"));
                     }
                 } catch (Exception e) {
                     Log.e(TAG, "Error obteniendo fecha del pedido: " + e.getMessage());
                 } finally {
                     if (cursorInfo != null) cursorInfo.close();
                 }
+
+                // 🛑 CORRECCIÓN CLAVE: Formatear la fecha obtenida de la DB
+                if (dbDateString != null && !dbDateString.isEmpty()) {
+                    try {
+                        // 1. Definir el formato de entrada (el que está en la DB)
+                        SimpleDateFormat dbFormat = new SimpleDateFormat(DB_DATE_FORMAT, Locale.getDefault());
+                        // 2. Parsear la cadena a un objeto Date
+                        Date dateObject = dbFormat.parse(dbDateString);
+
+                        // 3. Definir el formato de salida (día, mes, año en español)
+                        // Usamos Locale("es", "ES") para asegurar los nombres de los meses en español.
+                        SimpleDateFormat displayFormat = new SimpleDateFormat(DISPLAY_DATE_FORMAT, new Locale("es", "ES"));
+
+                        // 4. Formatear el objeto Date para mostrarlo
+                        fechaPedidoTexto = displayFormat.format(dateObject);
+
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error al formatear la fecha: " + e.getMessage() + ". Fecha DB: " + dbDateString);
+                        fechaPedidoTexto = "Error al formatear"; // En caso de que el formato de DB cambie.
+                    }
+                }
             }
 
             // Muestra la fecha en el TextView dedicado
-            tvFechaPedido.setText("Fecha de Compra: " + fechaPedido);
+            tvFechaPedido.setText("Fecha de Compra: " + fechaPedidoTexto);
 
             // Continúa con la Boleta
+            // ... (resto del código de detalle y pie de página)
             sb.append("Nombre: ").append(pedido.getNombreCliente()).append("\n");
             sb.append("Teléfono: ").append(pedido.getTelefono()).append("\n");
             sb.append("Dirección: ").append(pedido.getDireccion()).append("\n\n");
@@ -86,6 +119,7 @@ public class BoletaActivity extends AppCompatActivity {
 
             // --- 2. DETALLE (CARGA REAL DE NOMBRES DESDE DB) ---
             Cursor cursorDetalle = null;
+            // ... (el resto de la lógica de cursorDetalle permanece igual)
 
             if (idPedidoDb != -1) {
                 try {

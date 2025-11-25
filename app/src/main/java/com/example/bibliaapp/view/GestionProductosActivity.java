@@ -30,6 +30,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.example.bibliaapp.R;
 import com.example.bibliaapp.model.DBHelper;
 import com.example.bibliaapp.model.Producto;
+import com.example.bibliaapp.model.SharedPreferencesManager;
 import com.example.bibliaapp.view.adapter.GestionProductoAdapter;
 import com.google.android.material.navigation.NavigationView;
 
@@ -51,7 +52,7 @@ public class GestionProductosActivity extends AppCompatActivity
     private DrawerLayout drawerLayout;
     private NavigationView navView;
 
-    // Elementos del Formulario (Sin Descripción)
+    // Elementos del Formulario
     private EditText edtNombre, edtPrecio, edtStock;
     private ImageView ivProductoPreview;
     private Button btnSeleccionarImagen, btnAgregar;
@@ -84,6 +85,21 @@ public class GestionProductosActivity extends AppCompatActivity
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // --- INICIO: BLINDAJE DE SEGURIDAD POR ROL ---
+        String rol = SharedPreferencesManager.getInstance(this).getUserRol();
+        if (!rol.equals("administrador") && !rol.equals("vendedor")) {
+            Toast.makeText(this, "Acceso no autorizado.", Toast.LENGTH_LONG).show();
+            // Redirigir a la pantalla principal (ProductosActivity)
+            Intent intent = new Intent(this, ProductosActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            finish();
+            return; // Termina la ejecución de onCreate
+        }
+        // --- FIN: BLINDAJE DE SEGURIDAD ---
+
+
         setContentView(R.layout.activity_gestion_productos);
 
         Toolbar toolbar = findViewById(R.id.toolbar);
@@ -95,14 +111,19 @@ public class GestionProductosActivity extends AppCompatActivity
 
         ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
                 this, drawerLayout, toolbar,
-                R.string.navigation_drawer_open, R.string.navigation_drawer_close);
+                R.string.navigation_drawer_open,
+                R.string.navigation_drawer_close);
         drawerLayout.addDrawerListener(toggle);
         toggle.syncState();
+
+        // ** CORRECCIÓN CLAVE 1: Configurar el menú AHORA **
+        MenuUtil.configurarMenuPorRol(this, navView);
 
         navView.setNavigationItemSelectedListener(this);
 
         dbHelper = new DBHelper(this);
 
+        // Aquí se llama al método
         inicializarVistas();
 
         rvProductosGestion = findViewById(R.id.rvProductosGestion);
@@ -115,6 +136,7 @@ public class GestionProductosActivity extends AppCompatActivity
         btnAgregar.setOnClickListener(v -> agregarProducto());
     }
 
+    // *** MÉTODO DE INICIALIZACIÓN RESTAURADO ***
     private void inicializarVistas() {
         edtNombre = findViewById(R.id.edtNombre);
         // edtDescripcion ELIMINADO
@@ -128,11 +150,20 @@ public class GestionProductosActivity extends AppCompatActivity
         radioGroupCategorias = new RadioGroup(this);
         llCategoriasContainer.addView(radioGroupCategorias);
     }
+    // ********************************************
 
     @Override
     protected void onResume() {
         super.onResume();
-        MenuUtil.configurarMenuPorRol(this, navView);
+
+        // Vuelve a chequear permisos en onResume por si algo cambió fuera.
+        String rol = SharedPreferencesManager.getInstance(this).getUserRol();
+        if (!rol.equals("administrador") && !rol.equals("vendedor")) {
+            // Ya se maneja en onCreate, pero este check es extra seguro.
+            finish(); // Cierra si el rol cambió mientras la app estaba en segundo plano.
+            return;
+        }
+
         cargarProductos();
     }
 
@@ -196,7 +227,14 @@ public class GestionProductosActivity extends AppCompatActivity
             Toast.makeText(this, "Seleccione una categoría.", Toast.LENGTH_SHORT).show();
             return;
         }
-        RadioButton rbSelected = findViewById(selectedId);
+
+        // CORRECCIÓN: Usar la vista para obtener el texto, no el ID de grupo
+        RadioButton rbSelected = findViewById(radioGroupCategorias.getCheckedRadioButtonId());
+        if (rbSelected == null) {
+            Toast.makeText(this, "Error al obtener la categoría.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         String categoriaNombre = rbSelected.getText().toString();
         int idCategoria = dbHelper.getCategoriaIdByNombre(categoriaNombre);
 
@@ -221,7 +259,6 @@ public class GestionProductosActivity extends AppCompatActivity
 
     private void limpiarFormulario() {
         edtNombre.setText("");
-        // edtDescripcion eliminado
         edtPrecio.setText("");
         edtStock.setText("");
         ivProductoPreview.setImageResource(android.R.drawable.ic_menu_gallery);

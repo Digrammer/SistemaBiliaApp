@@ -1,7 +1,6 @@
 package com.example.bibliaapp.view;
 
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -15,18 +14,25 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.bibliaapp.R;
 import com.example.bibliaapp.model.DBHelper;
+import com.example.bibliaapp.model.SharedPreferencesManager;
+
+// *************************************************************
+// ** IMPORTACIONES CLAVE PARA LA REDIRECCIÓN POR ROL (CRASH FIX) **
+// *************************************************************
+import com.example.bibliaapp.view.ProductosActivity;
+import com.example.bibliaapp.view.GestionProductosActivity; // <<-- IMPORTACIÓN REQUERIDA
+import com.example.bibliaapp.view.VentasFisicasActivity;     // <<-- IMPORTACIÓN REQUERIDA
+// *************************************************************
+
 
 public class LoginActivity extends AppCompatActivity {
 
     private EditText edtCorreo, edtPassword;
     private Button btnLogin, btnVisitante, btnRegistrar;
     private boolean passwordVisible = false;
-    private DBHelper dbHelper; // Mantenemos la referencia global
+    private DBHelper dbHelper;
     private Handler uiHandler = new Handler(Looper.getMainLooper());
 
-    public static final String SHARED_PREFS_NAME = "BibliaAppPrefs";
-    public static final String KEY_LOGGED_USER_EMAIL = "loggedUserEmail";
-    public static final String KEY_LOGGED_USER_ROL = "loggedUserRol";
     public static final String ROL_VISITANTE = "visitante";
 
     @Override
@@ -40,32 +46,25 @@ public class LoginActivity extends AppCompatActivity {
         btnVisitante = findViewById(R.id.btnVisitante);
         btnRegistrar = findViewById(R.id.btnRegistrar);
 
-        // 1. Deshabilitar botones inmediatamente para prevenir interacción antes de la carga
+        // 1. Deshabilitar botones inmediatamente
         habilitarBotones(false);
 
-        // 2. 🌟 SOLUCIÓN CLAVE: Inicializar DBHelper en un HILO DE FONDO 🌟
+        // 2. Inicializar DBHelper en un HILO DE FONDO
         new Thread(() -> {
             try {
-                // Esta línea fuerza la creación de la DB (operación pesada) SIN bloquear la UI.
                 dbHelper = new DBHelper(this);
             } catch (Exception e) {
-                // Captura cualquier error de inicialización de la DB para evitar un CRASH.
                 e.printStackTrace();
                 uiHandler.post(() -> {
                     Toast.makeText(this, "ERROR CRÍTICO: Fallo al inicializar la base de datos.", Toast.LENGTH_LONG).show();
                 });
                 return;
             }
-
-            // Volvemos al hilo de la UI para habilitar botones
-            uiHandler.post(() -> {
-                habilitarBotones(true);
-
-            });
+            uiHandler.post(() -> habilitarBotones(true));
         }).start();
 
 
-        // 3. Configuración de Listeners (Se mantienen igual)
+        // 3. Configuración de Listeners
         edtPassword.setOnTouchListener((v, event) -> {
             final int DRAWABLE_END = 2;
             if (event.getAction() == MotionEvent.ACTION_UP) {
@@ -84,7 +83,6 @@ public class LoginActivity extends AppCompatActivity {
             return false;
         });
 
-        // Estos listeners ahora verifican si dbHelper es null ANTES de usarse
         btnLogin.setOnClickListener(v -> validarLogin());
         btnVisitante.setOnClickListener(v -> manejarVisitante());
         btnRegistrar.setOnClickListener(v -> manejarRegistro());
@@ -92,8 +90,9 @@ public class LoginActivity extends AppCompatActivity {
 
     private void manejarVisitante() {
         if (dbHelper != null) {
-            guardarSesion(ROL_VISITANTE, ROL_VISITANTE);
-            irAProductos();
+            // Visitante tiene ID -1
+            guardarSesionCompleta(-1, ROL_VISITANTE, ROL_VISITANTE);
+            irAActividad(ProductosActivity.class); // Visitante va directo al catálogo
         } else {
             Toast.makeText(this, "Sistema no inicializado. Espere un momento.", Toast.LENGTH_SHORT).show();
         }
@@ -107,8 +106,6 @@ public class LoginActivity extends AppCompatActivity {
         }
     }
 
-
-    // Método auxiliar para habilitar/deshabilitar botones
     private void habilitarBotones(boolean enabled) {
         btnLogin.setEnabled(enabled);
         btnVisitante.setEnabled(enabled);
@@ -127,26 +124,43 @@ public class LoginActivity extends AppCompatActivity {
         if (TextUtils.isEmpty(correo)) { edtCorreo.setError("Requerido"); return; }
         if (TextUtils.isEmpty(pass)) { edtPassword.setError("Requerido"); return; }
 
-        // La validación de login debe ser rápida, pero si es lenta,
-        // también debería hacerse en un hilo. Por ahora la dejamos aquí.
         String rolObtenido = dbHelper.validateAndGetRol(correo, pass);
 
         if (rolObtenido != null) {
-            guardarSesion(correo, rolObtenido);
-            Toast.makeText(this, "Bienvenido", Toast.LENGTH_SHORT).show();
-            irAProductos();
+            int userId = dbHelper.getUserIdByEmail(correo);
+            String rolLower = rolObtenido.toLowerCase();
+
+            if (userId != -1) {
+                // 1. Guardamos ID, Correo y Rol
+                guardarSesionCompleta(userId, correo, rolLower);
+                Toast.makeText(this, "Bienvenido", Toast.LENGTH_SHORT).show();
+
+                // 2. Redirección basada en el Rol
+                if (rolLower.equals("administrador")) {
+                    // Administrador va a Gestión de Productos (Dashboard principal de gestión)
+                    irAActividad(GestionProductosActivity.class);
+                } else if (rolLower.equals("vendedor")) {
+                    // Vendedor va a Ventas (Dashboard principal de ventas)
+                    irAActividad(VentasFisicasActivity.class);
+                } else {
+                    // Cliente va a Productos
+                    irAActividad(ProductosActivity.class);
+                }
+
+            } else {
+                Toast.makeText(this, "Error de sistema: ID no encontrado", Toast.LENGTH_SHORT).show();
+            }
         } else {
             Toast.makeText(this, "Datos incorrectos", Toast.LENGTH_SHORT).show();
         }
     }
 
-    private void guardarSesion(String correo, String rol) {
-        SharedPreferences prefs = getSharedPreferences(SHARED_PREFS_NAME, MODE_PRIVATE);
-        prefs.edit().putString(KEY_LOGGED_USER_EMAIL, correo).putString(KEY_LOGGED_USER_ROL, rol).apply();
+    private void guardarSesionCompleta(int id, String correo, String rol) {
+        SharedPreferencesManager.getInstance(this).saveUserSession(id, correo, rol);
     }
 
-    private void irAProductos() {
-        Intent intent = new Intent(LoginActivity.this, ProductosActivity.class);
+    private void irAActividad(Class<?> activityClass) {
+        Intent intent = new Intent(LoginActivity.this, activityClass);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(intent);
         finish();

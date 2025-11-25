@@ -1,7 +1,6 @@
 package com.example.bibliaapp.view;
 
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.view.MenuItem;
 import android.widget.Button;
@@ -18,6 +17,8 @@ import com.example.bibliaapp.R;
 import com.example.bibliaapp.view.adapter.CarritoAdapter;
 import com.example.bibliaapp.model.CarritoItem;
 import com.example.bibliaapp.model.CarritoSingleton;
+// 🛑 CORRECCIÓN DE IMPORTACIÓN: Ahora usa "SharedPreferencesManager" (con 's' en Preferences)
+import com.example.bibliaapp.model.SharedPreferencesManager;
 
 import java.util.List;
 
@@ -69,10 +70,11 @@ public class CarritoActivity extends AppCompatActivity {
                 return;
             }
 
-            // 2. 🛑 VALIDACIÓN DE ROL: VISITANTE NO PUEDE COMPRAR
-            // Usamos las mismas claves que en Login y Pedidos
-            SharedPreferences prefs = getSharedPreferences("BibliaAppPrefs", MODE_PRIVATE);
-            String rol = prefs.getString("loggedUserRol", "visitante");
+            // 2. CORRECCIÓN DE VALIDACIÓN DE ROL: VISITANTE NO PUEDE COMPRAR
+
+            // Usamos el nombre de la clase corregido: SharedPreferencesManager
+            SharedPreferencesManager sessionManager = SharedPreferencesManager.getInstance(this);
+            String rol = sessionManager.getUserRol(); // El rol por defecto es "visitante" si no hay sesión.
 
             if ("visitante".equalsIgnoreCase(rol)) {
                 // Mostrar alerta y bloquear
