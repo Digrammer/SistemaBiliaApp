@@ -5,15 +5,16 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
-import android.util.Log; // Importación necesaria para Log
-import androidx.annotation.Nullable;
-import java.util.ArrayList;
-import java.util.List;
+import android.util.Log;
 
-// Asegúrate de que estas clases existan o reemplaza los imports según tu estructura
-// import com.example.bibliaapp.model.CarritoItem;
-// import com.example.bibliaapp.model.Pedido;
-// import com.example.bibliaapp.model.Producto;
+import androidx.annotation.Nullable;
+
+import com.example.bibliaapp.model.dao.DetallePedidoDao;
+import com.example.bibliaapp.model.dao.PedidoDao;
+import com.example.bibliaapp.model.dao.ProductoDao;
+import com.example.bibliaapp.model.dao.UsuarioDao;
+
+import java.util.List;
 
 public class DBHelper extends SQLiteOpenHelper {
 
@@ -35,7 +36,7 @@ public class DBHelper extends SQLiteOpenHelper {
     public static final String TABLE_CATEGORIAS = "categorias";
     public static final String TABLE_PEDIDOS = "pedidos";
     public static final String TABLE_DETALLE_PEDIDO = "detalle_pedido";
-    private static final String TABLE_BOLETAS = "boletas";
+    public static final String TABLE_BOLETAS = "boletas";
 
     public DBHelper(@Nullable Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -49,7 +50,7 @@ public class DBHelper extends SQLiteOpenHelper {
 
     @Override
     public void onCreate(SQLiteDatabase db) {
-        // CREACIÓN DE TABLAS
+        // CREACIÓN DE TABLAS (idéntico a lo que tenías)
         db.execSQL("CREATE TABLE " + TABLE_USUARIOS + " (" +
                 COL_USUARIO_ID + " INTEGER PRIMARY KEY AUTOINCREMENT," +
                 COL_USUARIO_NOMBRE + " TEXT NOT NULL," +
@@ -80,7 +81,6 @@ public class DBHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX idx_productos_categoria ON " + TABLE_PRODUCTOS + "(id_categoria);");
         db.execSQL("CREATE INDEX idx_productos_nombre ON " + TABLE_PRODUCTOS + "(nombre);");
 
-        // Nota: Agregué la columna 'nombre_cliente' a la tabla PEDIDOS para ventas físicas
         db.execSQL("CREATE TABLE " + TABLE_PEDIDOS + " (" +
                 "id_pedido INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "codigo TEXT NOT NULL UNIQUE," +
@@ -90,7 +90,7 @@ public class DBHelper extends SQLiteOpenHelper {
                 "estado TEXT NOT NULL," +
                 "metodo_pago TEXT NOT NULL," +
                 "telefono_contacto TEXT," +
-                "nombre_cliente TEXT," + // Columna añadida para la venta física
+                "nombre_cliente TEXT," +
                 "FOREIGN KEY(id_usuario) REFERENCES " + TABLE_USUARIOS + "(" + COL_USUARIO_ID + ")" +
                 ");");
         db.execSQL("CREATE INDEX idx_pedidos_usuario ON " + TABLE_PEDIDOS + "(id_usuario);");
@@ -125,6 +125,7 @@ public class DBHelper extends SQLiteOpenHelper {
                 "telefono TEXT" +
                 ");");
 
+        // Inserciones iniciales (mantengo tus métodos de inserción aquí)
         checkAndInsertInitialCategories(db);
         insertInitialProducts(db);
         checkAndInsertInitialUsers(db);
@@ -142,6 +143,7 @@ public class DBHelper extends SQLiteOpenHelper {
         onCreate(db);
     }
 
+    // ---------- Mantengo los métodos de inicialización que se ejecutan en onCreate ----------
     private void insertProductoInicial(SQLiteDatabase db, String nombre, double precio, String imagen, String categoriaNombre, int stock) {
         db.execSQL("INSERT OR IGNORE INTO " + TABLE_CATEGORIAS + " (nombre) VALUES (?)", new String[]{categoriaNombre});
         Cursor cursor = db.rawQuery("SELECT id_categoria FROM " + TABLE_CATEGORIAS + " WHERE nombre = ?", new String[]{categoriaNombre});
@@ -209,714 +211,172 @@ public class DBHelper extends SQLiteOpenHelper {
         return db.insert(TABLE_USUARIOS, null, cv);
     }
 
+    // ---------- FIN inicialización ----------
 
-    public int getProductoCount() {
-        SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.rawQuery("SELECT COUNT(*) FROM " + TABLE_PRODUCTOS, null);
-        int count = 0;
-        if (cursor != null && cursor.moveToFirst()) {
-            count = cursor.getInt(0);
-            cursor.close();
-        }
-        return count;
-    }
-
-    public int getStockProducto(int idProducto) {
-        SQLiteDatabase db = this.getReadableDatabase();
-        int stock = 0;
-        Cursor cursor = db.rawQuery("SELECT stock FROM " + TABLE_PRODUCTOS + " WHERE id_producto = ?", new String[]{String.valueOf(idProducto)});
-        if (cursor != null && cursor.moveToFirst()) {
-            stock = cursor.getInt(0);
-            cursor.close();
-        }
-        return stock;
-    }
-
-    public boolean actualizarStockPorCompra(int idProducto, int cantidadComprada) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        int stockActual = getStockProducto(idProducto);
-        int nuevoStock = stockActual - cantidadComprada;
-
-        if (nuevoStock < 0) {
-            return false;
-        }
-        ContentValues values = new ContentValues();
-        values.put("stock", nuevoStock);
-
-        int filasAfectadas = db.update(TABLE_PRODUCTOS, values, "id_producto = ?", new String[]{String.valueOf(idProducto)});
-        return filasAfectadas > 0;
-    }
-
-    public boolean actualizarStock(int idProducto, int cantidadAñadir) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues values = new ContentValues();
-
-        int stockActual = getStockProducto(idProducto);
-        int nuevoStock = stockActual + cantidadAñadir;
-
-        if (nuevoStock < 0) {
-            return false;
-        }
-
-        values.put("stock", nuevoStock);
-
-        int filasAfectadas = db.update(TABLE_PRODUCTOS, values, "id_producto = ?", new String[]{String.valueOf(idProducto)});
-
-        return filasAfectadas > 0;
-    }
-
-
+    // ---------- Métodos públicos: ahora DELEGAN a los DAOs ----------
+    // Usuario
     public long insertUsuario(String nombre, String apellido, String correo, String contraseña,
                               String dni, String telefono, String direccion, String rol) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues cv = new ContentValues();
-        cv.put(COL_USUARIO_NOMBRE, nombre);
-        cv.put(COL_USUARIO_APELLIDO, apellido);
-        cv.put(COL_USUARIO_CORREO, correo);
-        cv.put(COL_USUARIO_CONTRASENA, contraseña);
-        cv.put(COL_USUARIO_DNI, dni);
-        cv.put(COL_USUARIO_TELEFONO, telefono);
-        cv.put(COL_USUARIO_DIRECCION, direccion);
-        cv.put(COL_USUARIO_ROL, rol);
-        long result = db.insert(TABLE_USUARIOS, null, cv);
-        return result;
+        return new UsuarioDao(this).insertUsuario(nombre, apellido, correo, contraseña, dni, telefono, direccion, rol);
     }
 
     public Cursor getUsuarioByCorreo(String correo) {
-        SQLiteDatabase db = this.getReadableDatabase();
-        return db.rawQuery("SELECT * FROM " + TABLE_USUARIOS + " WHERE " + COL_USUARIO_CORREO + " = ?", new String[]{correo});
+        return new UsuarioDao(this).getUsuarioByCorreo(correo);
     }
 
     public Cursor getUsuarioById(int id_usuario) {
-        SQLiteDatabase db = this.getReadableDatabase();
-        return db.rawQuery("SELECT * FROM " + TABLE_USUARIOS + " WHERE " + COL_USUARIO_ID + " = ?", new String[]{String.valueOf(id_usuario)});
+        return new UsuarioDao(this).getUsuarioById(id_usuario);
     }
 
     public String getRolByCorreo(String correo) {
-        SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.rawQuery("SELECT " + COL_USUARIO_ROL + " FROM " + TABLE_USUARIOS + " WHERE " + COL_USUARIO_CORREO + " = ?", new String[]{correo});
-        String rol = null;
-        if (cursor != null && cursor.moveToFirst()) {
-            rol = cursor.getString(cursor.getColumnIndexOrThrow(COL_USUARIO_ROL));
-            cursor.close();
-        }
-        return rol;
+        return new UsuarioDao(this).getRolByCorreo(correo);
     }
 
     public String validateAndGetRol(String correo, String contraseña) {
-        SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = null;
-        String rol = null;
-
-        try {
-            String[] columns = {COL_USUARIO_CONTRASENA, COL_USUARIO_ROL};
-            String selection = COL_USUARIO_CORREO + " = ?";
-            String[] selectionArgs = {correo};
-
-            cursor = db.query(TABLE_USUARIOS, columns, selection, selectionArgs, null, null, null);
-
-            if (cursor != null && cursor.moveToFirst()) {
-                String passAlmacenada = cursor.getString(cursor.getColumnIndexOrThrow(COL_USUARIO_CONTRASENA));
-
-                if (passAlmacenada.equals(contraseña)) {
-                    rol = cursor.getString(cursor.getColumnIndexOrThrow(COL_USUARIO_ROL));
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
-        }
-        return rol != null ? rol.toLowerCase().trim() : null;
+        return new UsuarioDao(this).validateAndGetRol(correo, contraseña);
     }
 
-
     public boolean validateLogin(String correo, String contraseña) {
-        Cursor cursor = getUsuarioByCorreo(correo);
-        boolean isValid = false;
-        if (cursor != null && cursor.moveToFirst()) {
-            String pass = cursor.getString(cursor.getColumnIndexOrThrow(COL_USUARIO_CONTRASENA));
-            isValid = pass.equals(contraseña);
-            cursor.close();
-        }
-        return isValid;
+        return new UsuarioDao(this).validateLogin(correo, contraseña);
     }
 
     public int updateUsuario(int id_usuario, String nombre, String apellido, String correo,
                              String contraseña, String dni, String telefono, String direccion, String rol) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues cv = new ContentValues();
-        cv.put(COL_USUARIO_NOMBRE, nombre);
-        cv.put(COL_USUARIO_APELLIDO, apellido);
-        cv.put(COL_USUARIO_CORREO, correo);
-        cv.put(COL_USUARIO_CONTRASENA, contraseña);
-        cv.put(COL_USUARIO_DNI, dni);
-        cv.put(COL_USUARIO_TELEFONO, telefono);
-        cv.put(COL_USUARIO_DIRECCION, direccion);
-        cv.put(COL_USUARIO_ROL, rol);
-        int result = db.update(TABLE_USUARIOS, cv, COL_USUARIO_ID + " = ?", new String[]{String.valueOf(id_usuario)});
-        return result;
+        return new UsuarioDao(this).updateUsuario(id_usuario, nombre, apellido, correo, contraseña, dni, telefono, direccion, rol);
     }
 
     public int deleteUsuario(int id_usuario) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        int result = db.delete(TABLE_USUARIOS, COL_USUARIO_ID + " = ?", new String[]{String.valueOf(id_usuario)});
-        return result;
-    }
-
-    public long insertCategoria(String nombre) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues cv = new ContentValues();
-        cv.put("nombre", nombre);
-        long result = db.insert(TABLE_CATEGORIAS, null, cv);
-        return result;
-    }
-
-    public int getCategoriaIdByNombre(String nombre) {
-        SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.rawQuery("SELECT id_categoria FROM " + TABLE_CATEGORIAS + " WHERE nombre = ?", new String[]{nombre});
-        int id = -1;
-        if (cursor != null && cursor.moveToFirst()) {
-            id = cursor.getInt(0);
-            cursor.close();
-        }
-        return id;
-    }
-
-    public List<String> getAllCategorias() {
-        List<String> lista = new ArrayList<>();
-        SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.rawQuery("SELECT nombre FROM " + TABLE_CATEGORIAS, null);
-        if (cursor.moveToFirst()) {
-            do {
-                lista.add(cursor.getString(0));
-            } while (cursor.moveToNext());
-        }
-        cursor.close();
-        return lista;
-    }
-
-    public long insertProducto(String nombre, double precio, String imagen,
-                               int id_categoria, int stock) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues cv = new ContentValues();
-        cv.put("nombre", nombre);
-        cv.put("precio", precio);
-        cv.put("imagen", imagen);
-        cv.put("id_categoria", id_categoria);
-        cv.put("stock", stock);
-        long result = db.insert(TABLE_PRODUCTOS, null, cv);
-        return result;
-    }
-
-    public Cursor getProductoById(int id_producto) {
-        SQLiteDatabase db = this.getReadableDatabase();
-        return db.rawQuery("SELECT * FROM " + TABLE_PRODUCTOS + " WHERE id_producto = ?", new String[]{String.valueOf(id_producto)});
-    }
-
-    // Se asume que la clase Producto está disponible en el paquete com.example.bibliaapp.model
-    public Producto getProductoByIdObject(int id) {
-        SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = null;
-        Producto producto = null;
-
-        try {
-            cursor = db.query(
-                    TABLE_PRODUCTOS,
-                    new String[] {"id_producto", "nombre", "precio", "imagen", "id_categoria", "stock"},
-                    "id_producto" + "=?",
-                    new String[]{String.valueOf(id)},
-                    null, null, null, null
-            );
-
-            if (cursor != null && cursor.moveToFirst()) {
-                int idIndex = cursor.getColumnIndexOrThrow("id_producto");
-                int nombreIndex = cursor.getColumnIndexOrThrow("nombre");
-                int precioIndex = cursor.getColumnIndexOrThrow("precio");
-                int imagenIndex = cursor.getColumnIndexOrThrow("imagen");
-                int idCategoriaIndex = cursor.getColumnIndexOrThrow("id_categoria");
-                int stockIndex = cursor.getColumnIndexOrThrow("stock");
-
-                int prodId = cursor.getInt(idIndex);
-                String nombre = cursor.getString(nombreIndex);
-                double precio = cursor.getDouble(precioIndex);
-                String imagen = cursor.getString(imagenIndex);
-                int idCategoria = cursor.getInt(idCategoriaIndex);
-                int stock = cursor.getInt(stockIndex);
-
-                producto = new Producto(prodId, nombre, precio, imagen, stock, idCategoria);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            if (cursor != null) cursor.close();
-        }
-        return producto;
-    }
-
-    // Se asume que la clase Producto está disponible en el paquete com.example.bibliaapp.model
-    public List<Producto> getAllProductosList() {
-        List<Producto> listaProductos = new ArrayList<>();
-        String selectQuery = "SELECT * FROM " + TABLE_PRODUCTOS;
-        SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.rawQuery(selectQuery, null);
-
-        if (cursor != null && cursor.moveToFirst()) {
-            int idIndex = cursor.getColumnIndexOrThrow("id_producto");
-            int nombreIndex = cursor.getColumnIndexOrThrow("nombre");
-            int precioIndex = cursor.getColumnIndexOrThrow("precio");
-            int imagenIndex = cursor.getColumnIndexOrThrow("imagen");
-            int idCategoriaIndex = cursor.getColumnIndexOrThrow("id_categoria");
-            int stockIndex = cursor.getColumnIndexOrThrow("stock");
-
-            do {
-                try {
-                    int prodId = cursor.getInt(idIndex);
-                    String nombre = cursor.getString(nombreIndex);
-                    double precio = cursor.getDouble(precioIndex);
-                    String imagen = cursor.getString(imagenIndex);
-                    int idCategoria = cursor.getInt(idCategoriaIndex);
-                    int stock = cursor.getInt(stockIndex);
-
-                    Producto producto = new Producto(prodId, nombre, precio, imagen, stock, idCategoria);
-                    listaProductos.add(producto);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            } while (cursor.moveToNext());
-        }
-
-        if (cursor != null) {
-            cursor.close();
-        }
-        return listaProductos;
-    }
-
-    // Se asume que la clase Producto está disponible en el paquete com.example.bibliaapp.model
-    public List<Producto> getProductosByCategoriaList(int id_categoria) {
-        List<Producto> listaProductos = new ArrayList<>();
-        SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_PRODUCTOS + " WHERE id_categoria = ?", new String[]{String.valueOf(id_categoria)});
-
-        if (cursor != null && cursor.moveToFirst()) {
-            int idIndex = cursor.getColumnIndexOrThrow("id_producto");
-            int nombreIndex = cursor.getColumnIndexOrThrow("nombre");
-            int precioIndex = cursor.getColumnIndexOrThrow("precio");
-            int imagenIndex = cursor.getColumnIndexOrThrow("imagen");
-            int idCategoriaIndex = cursor.getColumnIndexOrThrow("id_categoria");
-            int stockIndex = cursor.getColumnIndexOrThrow("stock");
-
-            do {
-                try {
-                    int prodId = cursor.getInt(idIndex);
-                    String nombre = cursor.getString(nombreIndex);
-                    double precio = cursor.getDouble(precioIndex);
-                    String imagen = cursor.getString(imagenIndex);
-                    int stock = cursor.getInt(stockIndex);
-                    int idCategoria = cursor.getInt(idCategoriaIndex);
-
-                    Producto producto = new Producto(prodId, nombre, precio, imagen, stock, idCategoria);
-                    listaProductos.add(producto);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            } while (cursor.moveToNext());
-        }
-
-        if (cursor != null) {
-            cursor.close();
-        }
-        return listaProductos;
-    }
-
-
-    public Cursor getAllProductos() {
-        SQLiteDatabase db = this.getReadableDatabase();
-        return db.rawQuery("SELECT * FROM " + TABLE_PRODUCTOS, null);
-    }
-
-    public Cursor getProductosByCategoria(int id_categoria) {
-        SQLiteDatabase db = this.getReadableDatabase();
-        return db.rawQuery("SELECT * FROM " + TABLE_PRODUCTOS + " WHERE id_categoria = ?", new String[]{String.valueOf(id_categoria)});
-    }
-
-    public int updateProducto(int id_producto, String nombre, double precio,
-                              String imagen, int id_categoria, int stock) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues cv = new ContentValues();
-        cv.put("nombre", nombre);
-        cv.put("precio", precio);
-        cv.put("imagen", imagen);
-        cv.put("id_categoria", id_categoria);
-        cv.put("stock", stock);
-        int result = db.update(TABLE_PRODUCTOS, cv, "id_producto = ?", new String[]{String.valueOf(id_producto)});
-        return result;
-    }
-
-    public int deleteProducto(int id_producto) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        int result = db.delete(TABLE_PRODUCTOS, "id_producto = ?", new String[]{String.valueOf(id_producto)});
-        return result;
-    }
-
-    public long insertPedido(String codigo, int id_usuario, double total, String estado, String metodo_pago, String telefonoContacto) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues cv = new ContentValues();
-        cv.put("codigo", codigo);
-        cv.put("id_usuario", id_usuario);
-        cv.put("total", total);
-        cv.put("estado", estado);
-        cv.put("metodo_pago", metodo_pago);
-        cv.put("telefono_contacto", telefonoContacto);
-        long result = db.insert(TABLE_PEDIDOS, null, cv);
-        return result;
-    }
-
-    public Cursor getPedidosByUsuario(int id_usuario) {
-        SQLiteDatabase db = this.getReadableDatabase();
-        return db.rawQuery("SELECT * FROM " + TABLE_PEDIDOS + " WHERE id_usuario = ?", new String[]{String.valueOf(id_usuario)});
-    }
-
-    public int updateEstadoPedido(String codigo, String estado) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues cv = new ContentValues();
-        cv.put("estado", estado);
-        int result = db.update(TABLE_PEDIDOS, cv, "codigo = ?", new String[]{codigo});
-        return result;
-    }
-
-    public long insertDetallePedido(int id_pedido, int id_producto, int cantidad, double subtotal) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues cv = new ContentValues();
-        cv.put("id_pedido", id_pedido);
-        cv.put("id_producto", id_producto);
-        cv.put("cantidad", cantidad);
-        cv.put("subtotal", subtotal);
-        long result = db.insert(TABLE_DETALLE_PEDIDO, null, cv);
-        return result;
-    }
-
-    public Cursor getDetalleByPedido(int id_pedido) {
-        SQLiteDatabase db = this.getReadableDatabase();
-        return db.rawQuery("SELECT * FROM " + TABLE_DETALLE_PEDIDO + " WHERE id_pedido = ?", new String[]{String.valueOf(id_pedido)});
-    }
-
-    public long insertBoleta(int id_pedido, double total, String numero_boleta) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues cv = new ContentValues();
-        cv.put("id_pedido", id_pedido);
-        cv.put("total", total);
-        cv.put("numero_boleta", numero_boleta);
-        long result = db.insert(TABLE_BOLETAS, null, cv);
-        return result;
-    }
-
-    public Cursor getBoletaByPedido(int id_pedido) {
-        SQLiteDatabase db = this.getReadableDatabase();
-        return db.rawQuery("SELECT * FROM " + TABLE_BOLETAS + " WHERE id_pedido = ?", new String[]{String.valueOf(id_pedido)});
-    }
-
-    // Se asume que las clases Pedido y CarritoItem están disponibles
-    public long guardarPedidoCompleto(Pedido pedido, List<CarritoItem> items) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        db.beginTransaction();
-        long idPedidoInsertado = -1;
-        double totalCalculado = pedido.getTotal();
-
-        try {
-            // Nota: Aquí estás usando un ID de usuario fijo (3) para pedidos.
-            // Esto es correcto si el cliente de la app web es siempre el mismo usuario "cliente".
-            int id_usuario_anonimo = 3;
-
-            ContentValues cvPedido = new ContentValues();
-            cvPedido.put("codigo", String.valueOf(pedido.getIdPedido()));
-            cvPedido.put("id_usuario", id_usuario_anonimo);
-            cvPedido.put("estado", pedido.getEstado());
-            cvPedido.put("metodo_pago", pedido.getTipoEntrega());
-            cvPedido.put("telefono_contacto", pedido.getTelefono());
-            cvPedido.put("total", totalCalculado);
-
-            idPedidoInsertado = db.insert(TABLE_PEDIDOS, null, cvPedido);
-
-            if (idPedidoInsertado > 0) {
-                boolean detallesOk = true;
-
-                for (CarritoItem item : items) {
-                    ContentValues cvDetalle = new ContentValues();
-                    cvDetalle.put("id_pedido", idPedidoInsertado);
-                    cvDetalle.put("id_producto", item.getProductoId());
-                    cvDetalle.put("cantidad", item.getCantidad());
-                    cvDetalle.put("subtotal", item.getSubtotal());
-
-                    long resultDetalle = db.insert(TABLE_DETALLE_PEDIDO, null, cvDetalle);
-
-                    boolean stockReducido = actualizarStockPorCompra(item.getProductoId(), item.getCantidad());
-
-                    if (resultDetalle <= 0 || !stockReducido) {
-                        detallesOk = false;
-                        break;
-                    }
-                }
-
-                if (detallesOk) {
-                    db.setTransactionSuccessful();
-                } else {
-                    idPedidoInsertado = -1;
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            idPedidoInsertado = -1;
-        } finally {
-            db.endTransaction();
-        }
-
-        return idPedidoInsertado;
+        return new UsuarioDao(this).deleteUsuario(id_usuario);
     }
 
     public boolean guardarTelefonoDeCliente(String telefono) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues cv = new ContentValues();
-        // Nota: Igual que antes, estás actualizando el usuario con ID fijo (3).
-        cv.put(COL_USUARIO_TELEFONO, telefono);
-        int filasAfectadas = db.update(TABLE_USUARIOS, cv, COL_USUARIO_ID + " = ?", new String[]{"3"});
-        return filasAfectadas > 0;
+        return new UsuarioDao(this).guardarTelefonoDeCliente(telefono);
     }
 
-    // Se asume que la clase Producto está disponible
+    public int getUserIdByEmail(String email) {
+        return new UsuarioDao(this).getUserIdByEmail(email);
+    }
+
+    // Producto
+    public int getProductoCount() {
+        return new ProductoDao(this).getProductoCount();
+    }
+
+    public int getStockProducto(int idProducto) {
+        return new ProductoDao(this).getStockProducto(idProducto);
+    }
+
+    public boolean actualizarStockPorCompra(int idProducto, int cantidadComprada) {
+        return new ProductoDao(this).actualizarStockPorCompra(idProducto, cantidadComprada);
+    }
+
+    public boolean actualizarStock(int idProducto, int cantidadAñadir) {
+        return new ProductoDao(this).actualizarStock(idProducto, cantidadAñadir);
+    }
+
+    public long insertProducto(String nombre, double precio, String imagen, int id_categoria, int stock) {
+        return new ProductoDao(this).insertProducto(nombre, precio, imagen, id_categoria, stock);
+    }
+
+    public Cursor getProductoById(int id_producto) {
+        return new ProductoDao(this).getProductoById(id_producto);
+    }
+
+    public Producto getProductoByIdObject(int id) {
+        return new ProductoDao(this).getProductoByIdObject(id);
+    }
+
     public Producto getProductoByIdModel(int idProducto) {
-        SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = null;
-        Producto producto = null;
+        return new ProductoDao(this).getProductoByIdModel(idProducto);
+    }
 
-        try {
-            cursor = getProductoById(idProducto);
+    public List<Producto> getAllProductosList() {
+        return new ProductoDao(this).getAllProductosList();
+    }
 
-            if (cursor != null && cursor.moveToFirst()) {
-                int id = cursor.getInt(cursor.getColumnIndexOrThrow("id_producto"));
-                String nombre = cursor.getString(cursor.getColumnIndexOrThrow("nombre"));
-                double precio = cursor.getDouble(cursor.getColumnIndexOrThrow("precio"));
-                String imagen = cursor.getString(cursor.getColumnIndexOrThrow("imagen"));
-                int id_categoria = cursor.getInt(cursor.getColumnIndexOrThrow("id_categoria"));
-                int stock = cursor.getInt(cursor.getColumnIndexOrThrow("stock"));
+    public List<Producto> getProductosByCategoriaList(int id_categoria) {
+        return new ProductoDao(this).getProductosByCategoriaList(id_categoria);
+    }
 
-                producto = new Producto(id, nombre, precio, imagen, stock, id_categoria);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
-        }
-        return producto;
+    public Cursor getAllProductos() {
+        return new ProductoDao(this).getAllProductos();
+    }
+
+    public Cursor getProductosByCategoria(int id_categoria) {
+        return new ProductoDao(this).getProductosByCategoria(id_categoria);
+    }
+
+    public int updateProducto(int id_producto, String nombre, double precio, String imagen, int id_categoria, int stock) {
+        return new ProductoDao(this).updateProducto(id_producto, nombre, precio, imagen, id_categoria, stock);
+    }
+
+    public int deleteProducto(int id_producto) {
+        return new ProductoDao(this).deleteProducto(id_producto);
+    }
+
+    public long insertCategoria(String nombre) {
+        return new ProductoDao(this).insertCategoria(nombre);
+    }
+
+    public int getCategoriaIdByNombre(String nombre) {
+        return new ProductoDao(this).getCategoriaIdByNombre(nombre);
+    }
+
+    public java.util.List<String> getAllCategorias() {
+        return new ProductoDao(this).getAllCategorias();
+    }
+
+    public java.util.List<Producto> getAllProductsSimple() {
+        return new ProductoDao(this).getAllProductsSimple();
+    }
+
+    // Pedido y detalle
+    public long insertPedido(String codigo, int id_usuario, double total, String estado, String metodo_pago, String telefonoContacto) {
+        return new PedidoDao(this).insertPedido(codigo, id_usuario, total, estado, metodo_pago, telefonoContacto);
+    }
+
+    public Cursor getPedidosByUsuario(int id_usuario) {
+        return new PedidoDao(this).getPedidosByUsuario(id_usuario);
+    }
+
+    public int updateEstadoPedido(String codigo, String estado) {
+        return new PedidoDao(this).updateEstadoPedido(codigo, estado);
+    }
+
+    public long insertDetallePedido(int id_pedido, int id_producto, int cantidad, double subtotal) {
+        return new DetallePedidoDao(this).insertDetallePedido(id_pedido, id_producto, cantidad, subtotal);
+    }
+
+    public Cursor getDetalleByPedido(int id_pedido) {
+        return new DetallePedidoDao(this).getDetalleByPedido(id_pedido);
+    }
+
+    public long insertBoleta(int id_pedido, double total, String numero_boleta) {
+        return new PedidoDao(this).insertBoleta(id_pedido, total, numero_boleta);
+    }
+
+    public Cursor getBoletaByPedido(int id_pedido) {
+        return new PedidoDao(this).getBoletaByPedido(id_pedido);
+    }
+
+    public long guardarPedidoCompleto(Pedido pedido, java.util.List<com.example.bibliaapp.model.CarritoItem> items) {
+        return new PedidoDao(this).guardarPedidoCompleto(pedido, items);
     }
 
     public Cursor getDetallePedidoConNombre(long id_pedido) {
-        SQLiteDatabase db = this.getReadableDatabase();
-        String query = "SELECT " +
-                "dp.id_producto, dp.cantidad, dp.subtotal, p.nombre, p.precio " +
-                "FROM " + TABLE_DETALLE_PEDIDO + " dp " +
-                "JOIN " + TABLE_PRODUCTOS + " p ON dp.id_producto = p.id_producto " +
-                "WHERE dp.id_pedido = ?";
-
-        return db.rawQuery(query, new String[]{String.valueOf(id_pedido)});
+        return new DetallePedidoDao(this).getDetallePedidoConNombre(id_pedido);
     }
 
-    // --- MÉTODO AÑADIDO PARA OBTENER INFORMACIÓN COMPLETA DEL PEDIDO ---
     public Cursor getPedidoInfoById(long id_pedido) {
-        SQLiteDatabase db = this.getReadableDatabase();
-        String query = "SELECT codigo, fecha, id_usuario, total, estado, metodo_pago, telefono_contacto, id_pedido, nombre_cliente FROM " +
-                TABLE_PEDIDOS + " WHERE id_pedido = ?";
-        return db.rawQuery(query, new String[]{String.valueOf(id_pedido)});
-    }
-    // ----------------------------------------------------------------------
-    // --- MÉTODOS DE LA VENTA FÍSICA Y AUXILIARES DE STOCK ---
-
-    // Se asume que la clase Producto está disponible
-    /**
-     * Obtiene una lista simplificada de todos los productos para usarse en un Spinner de ventas.
-     * @return Lista de objetos Producto.
-     */
-    public List<Producto> getAllProductsSimple() {
-        List<Producto> listaProductos = new ArrayList<>();
-        SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = null;
-
-        try {
-            // Solo necesitamos el ID, Nombre, Precio y Stock para el punto de venta
-            String query = "SELECT id_producto, nombre, precio, stock FROM " + TABLE_PRODUCTOS;
-            cursor = db.rawQuery(query, null);
-
-            if (cursor != null && cursor.moveToFirst()) {
-                do {
-                    int id = cursor.getInt(cursor.getColumnIndexOrThrow("id_producto"));
-                    String nombre = cursor.getString(cursor.getColumnIndexOrThrow("nombre"));
-                    double precio = cursor.getDouble(cursor.getColumnIndexOrThrow("precio"));
-                    int stock = cursor.getInt(cursor.getColumnIndexOrThrow("stock"));
-
-                    // Usamos el constructor de Producto con los campos disponibles
-                    Producto producto = new Producto(id, nombre, precio, null, stock, -1);
-                    listaProductos.add(producto);
-                } while (cursor.moveToNext());
-            }
-        } catch (Exception e) {
-            Log.e("DBHelper", "Error al obtener productos para Spinner: " + e.getMessage());
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
-        }
-        return listaProductos;
+        return new PedidoDao(this).getPedidoInfoById(id_pedido);
     }
 
-    /**
-     * Genera un código de pedido aleatorio de 6 dígitos único.
-     * @return Código de pedido.
-     */
     public int generateCodigoPedido() {
-        int codigo;
-        boolean exists;
-        SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = null;
-        do {
-            // Genera un número aleatorio entre 100000 y 999999
-            codigo = 100000 + (int) (Math.random() * 900000);
-
-            String query = "SELECT codigo FROM " + TABLE_PEDIDOS + " WHERE codigo = ?";
-            cursor = db.rawQuery(query, new String[]{String.valueOf(codigo)});
-            exists = cursor.getCount() > 0;
-            cursor.close();
-        } while (exists);
-        return codigo;
+        return new PedidoDao(this).generateCodigoPedido();
     }
 
-    // Se asume que las clases Pedido y CarritoItem están disponibles
-    /**
-     * Inserta un pedido físico y sus detalles dentro de una transacción, y actualiza el stock.
-     */
     public boolean insertPedidoFisico(Pedido pedido, int idUsuarioVendedor) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        db.beginTransaction();
-        boolean success = false;
-        long pedidoIdDb = -1;
-
-        try {
-            // 1. Insertar en la tabla PEDIDOS
-            ContentValues pedidoValues = new ContentValues();
-            pedidoValues.put("codigo", pedido.getIdPedido());
-            pedidoValues.put("id_usuario", idUsuarioVendedor);
-            pedidoValues.put("total", pedido.getTotal());
-            pedidoValues.put("estado", pedido.getEstado());
-            pedidoValues.put("metodo_pago", pedido.getTipoEntrega());
-            pedidoValues.put("telefono_contacto", pedido.getTelefono());
-            pedidoValues.put("nombre_cliente", pedido.getNombreCliente());
-
-            pedidoIdDb = db.insert(TABLE_PEDIDOS, null, pedidoValues); // Insertamos y obtenemos el ID interno
-
-            if (pedidoIdDb != -1) {
-                // 2. Insertar en la tabla DETALLE_PEDIDO y Actualizar STOCK
-                for (CarritoItem item : pedido.getItems()) {
-                    ContentValues detalleValues = new ContentValues();
-                    detalleValues.put("id_pedido", pedidoIdDb);
-                    detalleValues.put("id_producto", item.getProductoId());
-                    detalleValues.put("cantidad", item.getCantidad());
-                    detalleValues.put("subtotal", item.getSubtotal());
-
-                    long detalleId = db.insert(TABLE_DETALLE_PEDIDO, null, detalleValues);
-
-                    if (detalleId == -1) {
-                        throw new Exception("Fallo al insertar detalle.");
-                    }
-
-                    // 3. Actualizar STOCK
-                    // Usamos el método auxiliar updateStock (que maneja la reducción)
-                    updateStockVentasFisicas(db, item.getProductoId(), item.getCantidad());
-                }
-
-                db.setTransactionSuccessful(); // Si todo sale bien, confirmamos la transacción
-                success = true;
-            }
-        } catch (Exception e) {
-            Log.e("DBHelper", "Error al registrar pedido físico: " + e.getMessage());
-            success = false;
-        } finally {
-            db.endTransaction(); // Cerramos la transacción (commit o rollback)
-        }
-        return success;
+        return new PedidoDao(this).insertPedidoFisico(pedido, idUsuarioVendedor);
     }
-
-    // --- MÉTODOS AUXILIARES DE STOCK PARA VENTA FÍSICA (INTEGRADOS Y CORRECTOS) ---
-
-    /**
-     * Método auxiliar para actualizar el stock. Se usa DENTRO de la transacción de venta física.
-     */
-    private void updateStockVentasFisicas(SQLiteDatabase db, int idProducto, int cantidadVendida) {
-        // Obtenemos el stock actual
-        int stockActual = getStockByIdVentasFisicas(db, idProducto);
-        int nuevoStock = stockActual - cantidadVendida;
-
-        ContentValues values = new ContentValues();
-        values.put("stock", nuevoStock);
-
-        // Actualiza el producto
-        db.update(TABLE_PRODUCTOS, values, "id_producto = ?", new String[]{String.valueOf(idProducto)});
-    }
-
-    /**
-     * Método auxiliar para obtener el stock actual de un producto.
-     */
-    private int getStockByIdVentasFisicas(SQLiteDatabase db, int idProducto) {
-        Cursor cursor = null;
-        int stock = 0;
-        try {
-            String query = "SELECT stock FROM " + TABLE_PRODUCTOS + " WHERE id_producto = ?";
-            cursor = db.rawQuery(query, new String[]{String.valueOf(idProducto)});
-            if (cursor != null && cursor.moveToFirst()) {
-                stock = cursor.getInt(cursor.getColumnIndexOrThrow("stock"));
-            }
-        } catch (Exception e) {
-            Log.e("DBHelper", "Error obteniendo stock: " + e.getMessage());
-        } finally {
-            if (cursor != null) cursor.close();
-        }
-        return stock;
-    }
-
-    // --- MÉTODO CORREGIDO ---
-
-    /**
-     * Busca el ID de un usuario a partir de su correo electrónico.
-     * **CORREGIDO**: Usa las constantes correctas de tabla (TABLE_USUARIOS) y columna (COL_USUARIO_ID, COL_USUARIO_CORREO).
-     * @param email El correo electrónico del usuario.
-     * @return El ID del usuario, o -1 si no se encuentra.
-     */
-    public int getUserIdByEmail(String email) {
-        SQLiteDatabase db = this.getReadableDatabase();
-        int userId = -1;
-        Cursor cursor = null;
-
-        try {
-            String[] columns = {COL_USUARIO_ID};
-            String selection = COL_USUARIO_CORREO + " = ?";
-            String[] selectionArgs = {email};
-
-            // Usa TABLE_USUARIOS para que coincida con la creación de la tabla
-            cursor = db.query(TABLE_USUARIOS, columns, selection, selectionArgs, null, null, null);
-
-            if (cursor != null && cursor.moveToFirst()) {
-                // Obtiene el ID usando la constante de columna
-                userId = cursor.getInt(cursor.getColumnIndexOrThrow(COL_USUARIO_ID));
-            }
-        } catch (Exception e) {
-            Log.e("DBHelper", "Error buscando ID de usuario por email: " + e.getMessage());
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
-        }
-        return userId;
-    }
+    // ---------- fin delegaciones ----------
 }
