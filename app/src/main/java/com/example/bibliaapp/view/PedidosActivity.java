@@ -1,207 +1,184 @@
 package com.example.bibliaapp.view;
 
-import android.content.Context;
-import android.content.Intent;
-import android.content.SharedPreferences;
-import android.database.Cursor;
 import android.os.Bundle;
 import android.util.Log;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.ActionBarDrawerToggle;
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
-import androidx.core.view.GravityCompat;
-import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.bibliaapp.R;
 import com.example.bibliaapp.view.adapter.PedidoAdapter;
-import com.example.bibliaapp.model.DBHelper;
+import com.example.bibliaapp.controller.PedidoController;
 import com.example.bibliaapp.model.Pedido;
-import com.google.android.material.navigation.NavigationView;
+import com.example.bibliaapp.model.SharedPreferencesManager;
+import com.example.bibliaapp.model.Producto; // Import necesario
+import com.example.bibliaapp.model.DetallePedido; // Import necesario
 
-import java.util.ArrayList;
+import java.util.ArrayList; // Import necesario
 import java.util.List;
 
-public class PedidosActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
+/**
+ * Activity para mostrar la lista de pedidos.
+ * Se ha eliminado la lógica de DrawerLayout (menú lateral) y MenuUtil
+ * para concentrarse en la funcionalidad principal de la lista y el PDF.
+ */
+public class PedidosActivity extends AppCompatActivity implements PedidoAdapter.OnPedidoActionListener {
 
-    private static final String TAG = "PedidosActivity";
-    private DrawerLayout drawerLayout;
-    private NavigationView navigationView;
-    private RecyclerView recyclerViewPedidos;
-    private TextView tvNoPedidos;
-    private PedidoAdapter pedidoAdapter;
-    private DBHelper dbHelper;
+    private RecyclerView recyclerView;
+    private TextView tvEmptyState;
+    private Toolbar toolbar;
 
-    // 🛑 CONSTANTES CORREGIDAS (Coinciden con LoginActivity)
-    public static final String SHARED_PREFS_NAME = "BibliaAppPrefs";
-    public static final String KEY_LOGGED_USER_EMAIL = "loggedUserEmail";
-    public static final String KEY_LOGGED_USER_ROL = "loggedUserRol";
+    // Las variables del menú lateral se eliminaron.
+
+    private SharedPreferencesManager sessionManager;
+    private PedidoController pedidoController;
+    private String userRol;
+    private int userId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Usamos el layout activity_pedidos.xml
         setContentView(R.layout.activity_pedidos);
 
-        dbHelper = new DBHelper(this);
+        // Inicialización de componentes y controladores
+        toolbar = findViewById(R.id.toolbar_pedidos);
+        recyclerView = findViewById(R.id.recycler_pedidos);
+        tvEmptyState = findViewById(R.id.tv_empty_state);
 
-        Toolbar toolbar = findViewById(R.id.toolbar);
+        // *** CONFIGURACIÓN DEL TOOLBAR ***
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
-            getSupportActionBar().setTitle("Mis Pedidos");
+            getSupportActionBar().setTitle("Pedidos");
         }
+        toolbar.setTitleTextColor(getResources().getColor(R.color.black));
 
-        // Inicializar vistas
-        recyclerViewPedidos = findViewById(R.id.recyclerViewPedidos);
-        tvNoPedidos = findViewById(R.id.tvNoPedidos);
-        recyclerViewPedidos.setLayoutManager(new LinearLayoutManager(this));
+        // *** SOLUCIÓN PARA EL AVISO DE `onBackPressed` (AndroidX) ***
+        // Esta callback se mantiene por si quieres usar el botón de retroceso
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                // Simplemente finaliza la actividad, ya que no hay DrawerLayout que cerrar.
+                finish();
+            }
+        });
+        // ***************************************************************
 
-        // Configuración del Navigation Drawer
-        drawerLayout = findViewById(R.id.drawer_layout);
-        navigationView = findViewById(R.id.nav_view);
-        navigationView.setNavigationItemSelectedListener(this);
 
-        ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
-                this, drawerLayout, toolbar,
-                R.string.navigation_drawer_open,
-                R.string.navigation_drawer_close);
-        drawerLayout.addDrawerListener(toggle);
-        toggle.syncState();
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        pedidoController = new PedidoController(this);
+        sessionManager = SharedPreferencesManager.getInstance(this);
+
+        // 1. Obtener Rol e ID del usuario logeado
+        userId = sessionManager.getUserId();
+        userRol = sessionManager.getUserRol();
+
+        // Cargar los pedidos iniciales
+        loadPedidos();
     }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        // Cargar los pedidos cada vez que la actividad es visible
-        cargarPedidos();
-        MenuUtil.configurarMenuPorRol(this, navigationView);
-    }
+    // Se eliminan los métodos onResume y onNavigationItemSelected que dependían de MenuUtil/DrawerLayout.
 
-    private void cargarPedidos() {
-        SharedPreferences prefs = getSharedPreferences(SHARED_PREFS_NAME, Context.MODE_PRIVATE);
-        String correoUsuario = prefs.getString(KEY_LOGGED_USER_EMAIL, null);
-        String rolUsuario = prefs.getString(KEY_LOGGED_USER_ROL, "visitante");
 
-        // 1. Validación: Si es visitante o no hay correo, no mostrar pedidos
-        if (correoUsuario == null || "visitante".equalsIgnoreCase(rolUsuario)) {
-            tvNoPedidos.setText("Debe iniciar sesión con una cuenta para ver el historial.");
-            tvNoPedidos.setVisibility(View.VISIBLE);
-            recyclerViewPedidos.setVisibility(View.GONE);
-            return;
-        }
+    /**
+     * Carga los pedidos basándose en el rol del usuario.
+     */
+    private void loadPedidos() {
+        // Ejecutar la carga en un hilo separado para no bloquear la UI
+        new Thread(() -> {
+            List<Pedido> pedidos;
 
-        // 2. Obtener el ID real del usuario desde la BD usando el correo
-        int idUsuario = -1;
-        Cursor cursorUser = dbHelper.getUsuarioByCorreo(correoUsuario);
-        if (cursorUser != null && cursorUser.moveToFirst()) {
-            idUsuario = cursorUser.getInt(cursorUser.getColumnIndexOrThrow("id_usuario"));
-            cursorUser.close();
-        }
-
-        if (idUsuario == -1) {
-            Toast.makeText(this, "Error: Usuario no identificado.", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        List<Pedido> listaPedidos = new ArrayList<>();
-        Cursor cursor = null;
-
-        try {
-            // 3. Lógica de Roles
-            if ("administrador".equalsIgnoreCase(rolUsuario)) {
-                // El Administrador ve TODOS los pedidos (ordenados por ID descendente)
-                cursor = dbHelper.getReadableDatabase().rawQuery("SELECT * FROM pedidos ORDER BY id_pedido DESC", null);
+            // La lógica para decidir qué pedidos traer está en el Controller
+            if ("administrador".equals(userRol)) {
+                // Admin: Pide todos los pedidos.
+                pedidos = pedidoController.getPedidosByRol(-1, userRol);
+                Log.d("PedidosActivity", "Cargando TODOS los pedidos para Admin.");
+            } else if ("vendedor".equals(userRol) || "cliente".equals(userRol)) {
+                // Vendedor/Cliente: Pide solo sus pedidos.
+                pedidos = pedidoController.getPedidosByRol(userId, userRol);
+                Log.d("PedidosActivity", String.format("Cargando pedidos para ID %d y rol %s.", userId, userRol));
             } else {
-                // Cliente o Vendedor ven solo SUS pedidos
-                cursor = dbHelper.getPedidosByUsuario(idUsuario);
+                // Visitante o Rol desconocido
+                pedidos = new java.util.ArrayList<>();
+                Log.w("PedidosActivity", "Rol desconocido o visitante. Lista vacía.");
             }
 
-            if (cursor != null && cursor.moveToFirst()) {
-                do {
-                    // Mapear datos de la BD
-                    int id_pedido_bd = cursor.getInt(cursor.getColumnIndexOrThrow("id_pedido"));
-                    String codigo = cursor.getString(cursor.getColumnIndexOrThrow("codigo")); // ID de 6 dígitos
-                    int id_usuario_db = cursor.getInt(cursor.getColumnIndexOrThrow("id_usuario"));
-                    double total = cursor.getDouble(cursor.getColumnIndexOrThrow("total"));
-                    String estado = cursor.getString(cursor.getColumnIndexOrThrow("estado"));
-                    String metodoPago = cursor.getString(cursor.getColumnIndexOrThrow("metodo_pago"));
-                    String telefonoContacto = cursor.getString(cursor.getColumnIndexOrThrow("telefono_contacto"));
+            // Actualizar la UI en el hilo principal
+            runOnUiThread(() -> {
+                if (pedidos.isEmpty()) {
+                    recyclerView.setVisibility(View.GONE);
+                    tvEmptyState.setVisibility(View.VISIBLE);
+                    tvEmptyState.setText("No hay pedidos para mostrar en este momento.");
+                } else {
+                    recyclerView.setVisibility(View.VISIBLE);
+                    tvEmptyState.setVisibility(View.GONE);
 
-                    // Usamos el constructor COMPLETO de Pedido para pasarle el TOTAL directamente desde la BD
-                    Pedido pedido = new Pedido(
-                            Integer.parseInt(codigo),       // ID Pedido (código)
-                            "Cliente ID: " + id_usuario_db, // Nombre Cliente
-                            telefonoContacto,               // Teléfono
-                            "N/A",                          // Dirección
-                            estado,                         // Estado
-                            metodoPago,                     // Tipo Entrega / Método Pago
-                            total,                          // Total (importante pasarlo aquí)
-                            new ArrayList<>()               // Lista vacía para la vista de lista
-                    );
-
-                    listaPedidos.add(pedido);
-
-                } while (cursor.moveToNext());
-            }
-
-        } catch (Exception e) {
-            Log.e(TAG, "Error al cargar pedidos: " + e.getMessage());
-            Toast.makeText(this, "Error al cargar pedidos.", Toast.LENGTH_SHORT).show();
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
-        }
-
-        // Actualizar UI
-        if (listaPedidos.isEmpty()) {
-            tvNoPedidos.setText(rolUsuario.equalsIgnoreCase("administrador") ? "No hay pedidos en el sistema." : "Aún no tienes pedidos.");
-            tvNoPedidos.setVisibility(View.VISIBLE);
-            recyclerViewPedidos.setVisibility(View.GONE);
-        } else {
-            tvNoPedidos.setVisibility(View.GONE);
-            recyclerViewPedidos.setVisibility(View.VISIBLE);
-
-            // Inicializar adaptador
-            pedidoAdapter = new PedidoAdapter(this, listaPedidos);
-            recyclerViewPedidos.setAdapter(pedidoAdapter);
-        }
+                    // Inicializar y configurar el Adapter con la lista y el rol
+                    PedidoAdapter adapter = new PedidoAdapter(this, pedidos, userRol, this);
+                    recyclerView.setAdapter(adapter);
+                }
+            });
+        }).start();
     }
 
+    // =========================================================================
+    // IMPLEMENTACIÓN DE LA INTERFAZ PedidoAdapter.OnPedidoActionListener
+    // =========================================================================
+
+    /**
+     * Llamado desde el Adapter cuando se marca un pedido como "Completado".
+     * Recarga la lista para actualizar la vista.
+     */
     @Override
-    public boolean onNavigationItemSelected(@NonNull MenuItem item) {
-        boolean resultado = MenuUtil.manejarNavegacion(this, item.getItemId());
-        drawerLayout.closeDrawer(GravityCompat.START);
-        return resultado;
+    public void onEstadoActualizado() {
+        loadPedidos();
     }
 
+    /**
+     * Llamado desde el Adapter cuando se presiona "Descargar Boleta/PDF".
+     */
     @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        return true;
+    public void onDescargarPdf(Pedido pedido) {
+        Toast.makeText(this, "Iniciando generación de Boleta PDF con API Nativa.", Toast.LENGTH_SHORT).show();
+        generateAndSharePdf(pedido);
     }
 
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == R.id.action_cart) {
-            startActivity(new Intent(this, CarritoActivity.class));
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
-    }
+    /**
+     * Lógica final de generación de PDF, usando NativePdfGenerator.
+     * Genera datos de prueba para la boleta si no hay un sistema de carrito real.
+     */
+    private void generateAndSharePdf(Pedido pedido) {
+        Log.i("PDF_GENERATOR", "Generando documento para Pedido #"+ pedido.getIdPedido());
 
-    @Override
-    public void onBackPressed() {
-        if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
-            drawerLayout.closeDrawer(GravityCompat.START);
-        } else {
-            super.onBackPressed();
-        }
+        // PASO 1: Crear la lista de DetallePedido (Simulación de Productos comprados)
+        List<DetallePedido> detallesDePrueba = new ArrayList<>();
+
+        // Creamos objetos Producto (simulando que vienen de la DB o un listado)
+        // Recordar el constructor de Producto: public Producto(String nombre, double precio, String imagen, int stock, int idCategoria)
+
+        // 1. Producto 1: Biblia (Cantidad: 2)
+        Producto p1 = new Producto("Biblia Reina Valera 1960 - Tapa Dura", 95.00, "biblia.png", 50, 1);
+        detallesDePrueba.add(new DetallePedido(p1, 2));
+
+        // 2. Producto 2: Libro (Cantidad: 1)
+        Producto p2 = new Producto("Libro 'Liderazgo 360' de Maxwell", 45.90, "liderazgo.png", 20, 2);
+        detallesDePrueba.add(new DetallePedido(p2, 1));
+
+        // 3. Producto 3: Accesorios (Cantidad: 3)
+        Producto p3 = new Producto("Separadores Magnéticos (Pack 5u)", 10.00, "separador.png", 100, 3);
+        detallesDePrueba.add(new DetallePedido(p3, 3));
+
+        // 4. Producto 4: Música (Cantidad: 1)
+        Producto p4 = new Producto("CD Música Cristiana (Colección)", 25.50, "cd.png", 15, 4);
+        detallesDePrueba.add(new DetallePedido(p4, 1));
+
+        // PASO 2: Llamamos al generador nativo para crear y compartir el PDF
+        NativePdfGenerator.generateAndShareReceipt(this, pedido, detallesDePrueba);
     }
 }

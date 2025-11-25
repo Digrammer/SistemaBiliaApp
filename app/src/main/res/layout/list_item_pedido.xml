@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="8dp"
-    app:cardCornerRadius="8dp"
+    app:cardCornerRadius="12dp"
     app:cardElevation="4dp">
 
     <LinearLayout
@@ -13,37 +13,106 @@
         android:orientation="vertical"
         android:padding="16dp">
 
+        <!-- SECCIÓN DE DETALLES DEL PEDIDO -->
         <TextView
-            android:id="@+id/tvPedidoCodigo"
-            android:layout_width="match_parent"
+            android:id="@+id/tv_pedido_codigo"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Pedido #123456"
-            android:textColor="@android:color/black"
             android:textSize="18sp"
-            android:textStyle="bold" />
+            android:textStyle="bold"
+            android:textColor="@color/black" />
 
         <TextView
-            android:id="@+id/tvPedidoTotal"
-            android:layout_width="match_parent"
+            android:id="@+id/tv_pedido_cliente"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Total: S/150.00"
-            android:textSize="16sp" />
-
-        <TextView
-            android:id="@+id/tvPedidoMetodo"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Método: Yape"
-            android:textSize="14sp" />
-
-        <TextView
-            android:id="@+id/tvPedidoEstado"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Estado: Pendiente"
-            android:textColor="@color/design_default_color_error"
+            android:layout_marginTop="4dp"
+            android:text="Cliente: Juan Pérez"
             android:textSize="14sp"
-            android:textStyle="italic" />
+            android:textColor="@color/black" />
+
+        <TextView
+            android:id="@+id/tv_pedido_telefono"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Telf: 987654321"
+            android:textSize="14sp"
+            android:textColor="@color/black" />
+
+        <TextView
+            android:id="@+id/tv_pedido_total"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Total: S/. 150.00"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_marginTop="8dp"
+            android:textColor="@color/design_default_color_primary_dark" />
+
+        <!-- SECCIÓN DE ESTADO DEL PEDIDO (Para que sea fácil de identificar) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="12dp"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ESTADO: "
+                android:textStyle="bold"
+                android:textColor="@color/black"/>
+
+            <TextView
+                android:id="@+id/tv_pedido_estado"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Pendiente"
+                android:textStyle="bold"
+                android:textSize="16sp"
+                android:textColor="@color/design_default_color_error"/>
+        </LinearLayout>
+
+
+        <!-- SECCIÓN DE BOTONES (Contenedor flexible) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="16dp"
+            android:gravity="end">
+
+            <!-- Botón 1: WhatsApp (Ahora con ic_menu_send para compilar) -->
+            <Button
+                android:id="@+id/btn_contactar_whatsapp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:text="WhatsApp"
+                android:drawableStart="@android:drawable/ic_menu_send"
+                android:drawablePadding="4dp"
+                android:backgroundTint="@android:color/holo_green_dark"
+                android:textColor="@android:color/white"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:visibility="gone"
+                />
+
+            <!-- Botón 2: Dinámico (Gestión / Descarga PDF) -->
+            <Button
+                android:id="@+id/btn_accion_dinamica"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Gestionar Pedido"
+                android:backgroundTint="@color/design_default_color_primary"
+                android:textColor="@android:color/white"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:visibility="gone"
+                />
+        </LinearLayout>
 
     </LinearLayout>
 </androidx.cardview.widget.CardView>

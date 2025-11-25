@@ -1,39 +1,50 @@
 package com.example.bibliaapp.model;
 
+/**
+ * Representa una línea en un pedido (una entrada en la boleta).
+ * Esta clase es CRÍTICA porque combina el Producto (precio, nombre)
+ * con la Cantidad comprada en la transacción.
+ */
 public class DetallePedido {
+    private Producto producto;
+    private int cantidadComprada;
 
-    private int idDetalle;
-    private int idPedido;   // Clave foránea al pedido principal
-    private int idProducto; // Clave foránea al producto vendido
-    private int cantidad;
-    private double subtotal; // Cantidad * Precio
-
-    // Constructor completo (usado generalmente al cargar desde la DB)
-    public DetallePedido(int idDetalle, int idPedido, int idProducto, int cantidad, double subtotal) {
-        this.idDetalle = idDetalle;
-        this.idPedido = idPedido;
-        this.idProducto = idProducto;
-        this.cantidad = cantidad;
-        this.subtotal = subtotal;
+    /**
+     * Constructor para crear una línea de pedido.
+     * @param producto El objeto Producto que se compró.
+     * @param cantidadComprada La cantidad de unidades compradas de ese producto.
+     */
+    public DetallePedido(Producto producto, int cantidadComprada) {
+        this.producto = producto;
+        this.cantidadComprada = cantidadComprada;
     }
 
-    // Constructor simple (usado para crear un nuevo detalle antes de insertarlo)
-    public DetallePedido(int idPedido, int idProducto, int cantidad, double subtotal) {
-        this.idPedido = idPedido;
-        this.idProducto = idProducto;
-        this.cantidad = cantidad;
-        this.subtotal = subtotal;
+    // --- Getters del Objeto ---
+
+    /** Obtiene el objeto Producto asociado a esta línea. */
+    public Producto getProducto() {
+        return producto;
     }
 
-    // Getters necesarios para usar la información
-    public int getIdDetalle() { return idDetalle; }
-    public int getIdPedido() { return idPedido; }
-    public int getIdProducto() { return idProducto; }
-    public int getCantidad() { return cantidad; }
-    public double getSubtotal() { return subtotal; }
+    /** Obtiene la cantidad de unidades compradas en esta línea. */
+    public int getCantidadComprada() {
+        return cantidadComprada;
+    }
 
-    // Setters (Opcionales, pero es buena práctica tenerlos si los datos cambian)
-    public void setIdDetalle(int idDetalle) { this.idDetalle = idDetalle; }
-    public void setCantidad(int cantidad) { this.cantidad = cantidad; }
-    public void setSubtotal(double subtotal) { this.subtotal = subtotal; }
+    // --- Métodos de Conveniencia (para el PDF) ---
+
+    /** Obtiene el nombre del producto directamente. */
+    public String getNombre() {
+        return producto.getNombre();
+    }
+
+    /** Obtiene el precio unitario del producto. */
+    public double getPrecioUnitario() {
+        return producto.getPrecio();
+    }
+
+    /** Calcula el total de la línea (Precio * Cantidad). */
+    public double getTotalLinea() {
+        return getPrecioUnitario() * cantidadComprada;
+    }
 }

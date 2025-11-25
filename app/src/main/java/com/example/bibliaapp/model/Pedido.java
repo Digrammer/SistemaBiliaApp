@@ -5,10 +5,10 @@ import java.util.List;
 public class Pedido {
 
     private int idPedido;
-    private int idUsuario; // <--- NUEVO CAMPO NECESARIO
+    private int idUsuario; // Campo necesario para vincular al usuario que realiza/atiende el pedido
     private String nombreCliente;
     private String telefono;
-    private String direccion;
+    private String direccion; // Campo que faltaba el setter
     private String estado;
     private String tipoEntrega;
     private double total;
@@ -37,12 +37,11 @@ public class Pedido {
         this.items = items;
     }
 
-    // --- CONSTRUCTOR 3: NUEVO (PARA VENTAS FÍSICAS) ---
-    // Este es el que te daba error. Ahora ya existe.
+    // Constructor 3: (Para ventas físicas o desde la base de datos)
     public Pedido(int idPedido, int idUsuario, double total, String estado, String tipoEntrega,
                   String telefono, String nombreCliente, List<CarritoItem> items) {
         this.idPedido = idPedido;
-        this.idUsuario = idUsuario; // Guardamos el ID del vendedor
+        this.idUsuario = idUsuario; // Guardamos el ID del vendedor/cliente
         this.total = total;
         this.estado = estado;
         this.tipoEntrega = tipoEntrega;
@@ -64,13 +63,17 @@ public class Pedido {
     // Getters y Setters
     public int getIdPedido() { return idPedido; }
 
-    // Getter nuevo para el ID de Usuario
     public int getIdUsuario() { return idUsuario; }
     public void setIdUsuario(int idUsuario) { this.idUsuario = idUsuario; }
 
     public String getNombreCliente() { return nombreCliente; }
     public String getTelefono() { return telefono; }
     public String getDireccion() { return direccion; }
+
+    // *** MÉTODO CORREGIDO/AGREGADO (Era la fuente del error) ***
+    public void setDireccion(String direccion) { this.direccion = direccion; }
+    // ************************************************************
+
     public String getEstado() { return estado; }
     public void setEstado(String estado) { this.estado = estado; }
     public String getTipoEntrega() { return tipoEntrega; }
