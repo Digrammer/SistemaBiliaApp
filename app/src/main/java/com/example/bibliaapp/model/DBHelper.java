@@ -19,7 +19,7 @@ import java.util.List;
 public class DBHelper extends SQLiteOpenHelper {
 
     private static final String DB_NAME = "BibliaAppDB";
-    private static final int DB_VERSION = 2;
+    private static final int DB_VERSION = 3; // *** ACTUALIZADO a 3 ***
 
     public static final String TABLE_USUARIOS = "usuarios";
     public static final String COL_USUARIO_ID = "id_usuario";
@@ -37,6 +37,11 @@ public class DBHelper extends SQLiteOpenHelper {
     public static final String TABLE_PEDIDOS = "pedidos";
     public static final String TABLE_DETALLE_PEDIDO = "detalle_pedido";
     public static final String TABLE_BOLETAS = "boletas";
+    public static final String TABLE_FACTURAS = "facturas"; // *** NUEVA TABLA ***
+
+    // *** NUEVAS COLUMNAS PARA TABLE_PEDIDOS ***
+    public static final String COL_PEDIDO_TIPO_COMPROBANTE = "tipo_comprobante";
+    public static final String COL_PEDIDO_ID_VENDEDOR = "id_vendedor";
 
     public DBHelper(@Nullable Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -81,6 +86,7 @@ public class DBHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE INDEX idx_productos_categoria ON " + TABLE_PRODUCTOS + "(id_categoria);");
         db.execSQL("CREATE INDEX idx_productos_nombre ON " + TABLE_PRODUCTOS + "(nombre);");
 
+        // *** MODIFICACIÓN DE TABLE_PEDIDOS: Añadidos tipo_comprobante e id_vendedor ***
         db.execSQL("CREATE TABLE " + TABLE_PEDIDOS + " (" +
                 "id_pedido INTEGER PRIMARY KEY AUTOINCREMENT," +
                 "codigo TEXT NOT NULL UNIQUE," +
@@ -91,7 +97,10 @@ public class DBHelper extends SQLiteOpenHelper {
                 "metodo_pago TEXT NOT NULL," +
                 "telefono_contacto TEXT," +
                 "nombre_cliente TEXT," +
-                "FOREIGN KEY(id_usuario) REFERENCES " + TABLE_USUARIOS + "(" + COL_USUARIO_ID + ")" +
+                COL_PEDIDO_TIPO_COMPROBANTE + " TEXT NOT NULL," + // NUEVO
+                COL_PEDIDO_ID_VENDEDOR + " INTEGER," +             // NUEVO (Puede ser NULL)
+                "FOREIGN KEY(id_usuario) REFERENCES " + TABLE_USUARIOS + "(" + COL_USUARIO_ID + ")," +
+                "FOREIGN KEY(" + COL_PEDIDO_ID_VENDEDOR + ") REFERENCES " + TABLE_USUARIOS + "(" + COL_USUARIO_ID + ")" + // Nueva FK
                 ");");
         db.execSQL("CREATE INDEX idx_pedidos_usuario ON " + TABLE_PEDIDOS + "(id_usuario);");
         db.execSQL("CREATE INDEX idx_pedidos_codigo ON " + TABLE_PEDIDOS + "(codigo);");
@@ -110,13 +119,27 @@ public class DBHelper extends SQLiteOpenHelper {
 
         db.execSQL("CREATE TABLE " + TABLE_BOLETAS + " (" +
                 "id_boleta INTEGER PRIMARY KEY AUTOINCREMENT," +
-                "id_pedido INTEGER NOT NULL," +
+                "id_pedido INTEGER NOT NULL UNIQUE," +
                 "fecha DATETIME DEFAULT CURRENT_TIMESTAMP," +
                 "total REAL NOT NULL," +
                 "numero_boleta TEXT UNIQUE," +
                 "FOREIGN KEY(id_pedido) REFERENCES " + TABLE_PEDIDOS + "(id_pedido)" +
                 ");");
         db.execSQL("CREATE INDEX idx_boletas_pedido ON " + TABLE_BOLETAS + "(id_pedido);");
+
+        // *** NUEVA TABLA PARA FACTURAS ***
+        db.execSQL("CREATE TABLE " + TABLE_FACTURAS + " (" +
+                "id_factura INTEGER PRIMARY KEY AUTOINCREMENT," +
+                "id_pedido INTEGER NOT NULL UNIQUE," +
+                "ruc TEXT NOT NULL," +
+                "razon_social TEXT NOT NULL," +
+                "fecha DATETIME DEFAULT CURRENT_TIMESTAMP," +
+                "total REAL NOT NULL," +
+                "numero_factura TEXT UNIQUE," +
+                "FOREIGN KEY(id_pedido) REFERENCES " + TABLE_PEDIDOS + "(id_pedido)" +
+                ");");
+        db.execSQL("CREATE INDEX idx_facturas_pedido ON " + TABLE_FACTURAS + "(id_pedido);");
+        // **********************************
 
         db.execSQL("CREATE TABLE empleados (" +
                 "id_empleado INTEGER PRIMARY KEY AUTOINCREMENT," +
@@ -125,7 +148,7 @@ public class DBHelper extends SQLiteOpenHelper {
                 "telefono TEXT" +
                 ");");
 
-        // Inserciones iniciales (mantengo tus métodos de inserción aquí)
+        // Inserciones iniciales
         checkAndInsertInitialCategories(db);
         insertInitialProducts(db);
         checkAndInsertInitialUsers(db);
@@ -133,17 +156,19 @@ public class DBHelper extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        // Asegurarse de que si se actualiza la versión, la nueva tabla se borre
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_DETALLE_PEDIDO);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_PEDIDOS);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_PRODUCTOS);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_CATEGORIAS);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_USUARIOS);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_BOLETAS);
+        db.execSQL("DROP TABLE IF EXISTS " + TABLE_FACTURAS); // *** AÑADIDO ***
         db.execSQL("DROP TABLE IF EXISTS empleados");
         onCreate(db);
     }
 
-    // ---------- Mantengo los métodos de inicialización que se ejecutan en onCreate ----------
+    // ---------- MÉTODOS DE INICIALIZACIÓN (Mismos que ya tenías) ----------
     private void insertProductoInicial(SQLiteDatabase db, String nombre, double precio, String imagen, String categoriaNombre, int stock) {
         db.execSQL("INSERT OR IGNORE INTO " + TABLE_CATEGORIAS + " (nombre) VALUES (?)", new String[]{categoriaNombre});
         Cursor cursor = db.rawQuery("SELECT id_categoria FROM " + TABLE_CATEGORIAS + " WHERE nombre = ?", new String[]{categoriaNombre});
@@ -210,10 +235,35 @@ public class DBHelper extends SQLiteOpenHelper {
         cv.put(COL_USUARIO_ROL, rol);
         return db.insert(TABLE_USUARIOS, null, cv);
     }
+    // Dentro de la clase DBHelper
+// ... después de los demás métodos delegados ...
 
+    /**
+     * Obtiene el ID interno (id_pedido) de la base de datos a partir del código (texto) del pedido.
+     * @param codigoPedido El código único TEXTO/NUMÉRICO del pedido.
+     * @return El ID interno (INTEGER) o -1 si no se encuentra.
+     */
+    public long getDbIdFromCodigo(int codigoPedido) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = null;
+        long id = -1;
+        try {
+            cursor = db.rawQuery("SELECT id_pedido FROM " + TABLE_PEDIDOS + " WHERE codigo = ?", new String[]{String.valueOf(codigoPedido)});
+            if (cursor != null && cursor.moveToFirst()) {
+                id = cursor.getLong(0);
+            }
+        } catch (Exception e) {
+            Log.e("DBHelper", "Error getDbIdFromCodigo: " + e.getMessage());
+        } finally {
+            if (cursor != null) cursor.close();
+        }
+        return id;
+    }
+
+// ...
     // ---------- FIN inicialización ----------
 
-    // ---------- Métodos públicos: ahora DELEGAN a los DAOs ----------
+    // ---------- Métodos públicos: DELEGAN a los DAOs (Mismos que ya tenías) ----------
     // Usuario
     public long insertUsuario(String nombre, String apellido, String correo, String contraseña,
                               String dni, String telefono, String direccion, String rol) {
@@ -331,8 +381,11 @@ public class DBHelper extends SQLiteOpenHelper {
     }
 
     // Pedido y detalle
-    public long insertPedido(String codigo, int id_usuario, double total, String estado, String metodo_pago, String telefonoContacto) {
-        return new PedidoDao(this).insertPedido(codigo, id_usuario, total, estado, metodo_pago, telefonoContacto);
+    // NOTA: EL MÉTODO 'insertPedido' DEBE SER ACTUALIZADO EN PedidoDao.java PARA RECIBIR
+    // LOS NUEVOS PARÁMETROS: tipoComprobante y idVendedor.
+    public long insertPedido(String codigo, int id_usuario, double total, String estado,
+                             String metodo_pago, String telefonoContacto, String tipoComprobante, int idVendedor) {
+        return new PedidoDao(this).insertPedido(codigo, id_usuario, total, estado, metodo_pago, telefonoContacto, tipoComprobante, idVendedor);
     }
 
     public Cursor getPedidosByUsuario(int id_usuario) {
@@ -351,6 +404,11 @@ public class DBHelper extends SQLiteOpenHelper {
         return new DetallePedidoDao(this).getDetalleByPedido(id_pedido);
     }
 
+    // NOTA: Se añade un nuevo método para insertar FACTURAS
+    public long insertFactura(int id_pedido, double total, String numero_factura, String ruc, String razonSocial) {
+        return new PedidoDao(this).insertFactura(id_pedido, total, numero_factura, ruc, razonSocial);
+    }
+
     public long insertBoleta(int id_pedido, double total, String numero_boleta) {
         return new PedidoDao(this).insertBoleta(id_pedido, total, numero_boleta);
     }
@@ -358,6 +416,12 @@ public class DBHelper extends SQLiteOpenHelper {
     public Cursor getBoletaByPedido(int id_pedido) {
         return new PedidoDao(this).getBoletaByPedido(id_pedido);
     }
+
+    // NOTA: Se añade el método para obtener factura
+    public Cursor getFacturaByPedido(int id_pedido) {
+        return new PedidoDao(this).getFacturaByPedido(id_pedido);
+    }
+
 
     public long guardarPedidoCompleto(Pedido pedido, java.util.List<com.example.bibliaapp.model.CarritoItem> items) {
         return new PedidoDao(this).guardarPedidoCompleto(pedido, items);

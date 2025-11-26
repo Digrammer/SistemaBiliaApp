@@ -26,6 +26,13 @@ public class Producto {
         this.stock = stock;
         this.idCategoria = idCategoria;
     }
+    // Dentro de la clase Producto.java
+
+    // Constructor vacío/por defecto necesario para inicializar el objeto antes de asignar propiedades.
+    public Producto() {
+        // Inicializa campos si es necesario, o déjalo vacío.
+    }
+// ... [otros constructores] ...
 
     // --- Getters y Setters ---
 

@@ -1,4 +1,4 @@
-package com.example.bibliaapp.view;
+package com.example.bibliaapp.model; // Asumimos que mueves la clase a 'model'
 
 import android.app.Activity;
 import android.content.Context;
@@ -15,9 +15,6 @@ import android.widget.Toast;
 
 import androidx.core.content.FileProvider;
 
-import com.example.bibliaapp.model.DetallePedido; // Importamos el DetallePedido que acabas de crear
-import com.example.bibliaapp.model.Pedido;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -29,7 +26,7 @@ import java.util.Locale;
 /**
  * Clase para generar un recibo de pedido en formato PDF
  * utilizando las APIs nativas de Android (PdfDocument),
- * sin requerir librerías externas ni modificar build.gradle.
+ * con soporte para Boleta y Factura.
  */
 public class NativePdfGenerator {
 
@@ -42,6 +39,7 @@ public class NativePdfGenerator {
     private static final int TEXT_SIZE = 10;
     private static final int HEADER_SIZE = 18;
     private static final int LINE_HEIGHT = 18;
+    private static final String TIPO_FACTURA = "Factura";
 
     /**
      * Genera el recibo PDF y lo comparte mediante un Intent.
@@ -50,6 +48,7 @@ public class NativePdfGenerator {
      * @param detallesPedido La lista de DetallePedido (Productos + Cantidad).
      */
     public static void generateAndShareReceipt(Activity activity, Pedido pedido, List<DetallePedido> detallesPedido) {
+        // La generación de PDF se mantiene en un hilo secundario
         new Thread(() -> {
             File pdfFile = createPdf(activity, pedido, detallesPedido);
             activity.runOnUiThread(() -> {
@@ -75,10 +74,13 @@ public class NativePdfGenerator {
 
         try {
             // --- CABECERA Y TÍTULO ---
+            boolean esFactura = TIPO_FACTURA.equalsIgnoreCase(pedido.getTipoComprobante());
+            String title = esFactura ? "FACTURA DE VENTA" : "BOLETA DE VENTA";
+
             paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
             paint.setTextSize(HEADER_SIZE);
             paint.setColor(Color.rgb(0, 102, 0)); // Verde oscuro
-            String title = "BOLETA DE VENTA";
+
             float titleWidth = paint.measureText(title);
             // Centra el título
             canvas.drawText(title, (PAGE_WIDTH - titleWidth) / 2, y, paint);
@@ -88,7 +90,7 @@ public class NativePdfGenerator {
             canvas.drawLine(MARGIN, y, PAGE_WIDTH - MARGIN, y, paint);
             y += 20;
 
-            // --- DETALLES DEL PEDIDO ---
+            // --- DETALLES DE CLIENTE Y COMPROBANTE ---
             paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
             paint.setTextSize(TEXT_SIZE);
             paint.setColor(Color.BLACK);
@@ -96,17 +98,36 @@ public class NativePdfGenerator {
             SimpleDateFormat dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault());
             String dateStr = dateFormat.format(new Date());
 
+            // Columna izquierda (Datos del Pedido)
             canvas.drawText("Pedido Nro: " + pedido.getIdPedido(), x, y, paint);
             y += LINE_HEIGHT;
             canvas.drawText("Fecha: " + dateStr, x, y, paint);
             y += LINE_HEIGHT;
+            canvas.drawText("Cliente: " + pedido.getNombreCliente(), x, y, paint);
+            y += LINE_HEIGHT;
+            canvas.drawText("Teléfono: " + pedido.getTelefono(), x, y, paint);
+            y += LINE_HEIGHT;
+
+            // Si es FACTURA, agregar RUC y Razón Social
+            if (esFactura) {
+                canvas.drawText("RUC: " + (pedido.getRuc() != null ? pedido.getRuc() : "N/A"), x, y, paint);
+                y += LINE_HEIGHT;
+                canvas.drawText("Razón Social: " + (pedido.getRazonSocial() != null ? pedido.getRazonSocial() : "N/A"), x, y, paint);
+                y += LINE_HEIGHT;
+            }
+
+            // Estado y Método de Pago
+            y += LINE_HEIGHT / 2;
             paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
             canvas.drawText("Estado: " + pedido.getEstado(), x, y, paint);
+            y += LINE_HEIGHT;
+            canvas.drawText("Método de Pago: " + pedido.getTipoEntrega(), x, y, paint);
+
             paint.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
             y += LINE_HEIGHT * 2;
 
 
-            // --- TABLA DE DETALLES ---
+            // --- TABLA DE DETALLES (SIN CAMBIOS) ---
             int col1 = MARGIN + 10; // Cantidad
             int col2 = MARGIN + 60; // Descripción
             int col3 = PAGE_WIDTH - MARGIN - 120; // P. Unit.
@@ -164,7 +185,7 @@ public class NativePdfGenerator {
             // Línea sobre totales (para separarla de los productos)
             canvas.drawLine(PAGE_WIDTH - MARGIN - 200, y - 5, PAGE_WIDTH - MARGIN, y - 5, paint);
 
-            double igv = subTotal * 0.18;
+            double igv = subTotal * 0.18; // Asumo 18% de IGV
             double totalFinal = subTotal + igv;
             int totalX = PAGE_WIDTH - MARGIN - 20; // Columna derecha de totales
             int labelX = PAGE_WIDTH - MARGIN - 130; // Columna izquierda de totales
@@ -199,7 +220,7 @@ public class NativePdfGenerator {
 
             // 2. Guardar el archivo
             String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
-            String fileName = "Boleta_Pedido_" + pedido.getIdPedido() + "_" + timeStamp + ".pdf";
+            String fileName = (esFactura ? "Factura" : "Boleta") + "_Pedido_" + pedido.getIdPedido() + "_" + timeStamp + ".pdf";
 
             // Guardar en el directorio de Documentos de la App
             File dir = context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS);
@@ -235,7 +256,7 @@ public class NativePdfGenerator {
             shareIntent.putExtra(Intent.EXTRA_STREAM, pdfUri);
             shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
 
-            context.startActivity(Intent.createChooser(shareIntent, "Compartir Boleta de Pedido"));
+            context.startActivity(Intent.createChooser(shareIntent, "Compartir Comprobante de Pedido"));
 
         } catch (Exception e) {
             Log.e(TAG, "Error al compartir PDF: " + e.getMessage(), e);

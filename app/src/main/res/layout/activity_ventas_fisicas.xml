@@ -63,6 +63,44 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:text="Tipo de Comprobante"
+                    android:textStyle="bold"
+                    android:textColor="@color/black"
+                    android:layout_marginBottom="8dp"/>
+
+                <Spinner
+                    android:id="@+id/spTipoComprobante"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:background="@android:drawable/btn_dropdown"
+                    android:layout_marginBottom="8dp"/>
+
+                <EditText
+                    android:id="@+id/etRuc"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="RUC (11 dígitos)"
+                    android:textColor="@color/black"
+                    android:textColorHint="@color/darker_gray"
+                    android:inputType="number"
+                    android:maxLength="11"
+                    android:visibility="gone"
+                    android:layout_marginBottom="8dp"/>
+
+                <EditText
+                    android:id="@+id/etRazonSocial"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Razón Social"
+                    android:textColor="@color/black"
+                    android:textColorHint="@color/darker_gray"
+                    android:inputType="textCapWords"
+                    android:visibility="gone"
+                    android:layout_marginBottom="16dp"/>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
                     android:text="Seleccionar Producto"
                     android:textStyle="bold"
                     android:textColor="@color/black"

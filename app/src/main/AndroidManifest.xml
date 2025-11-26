@@ -22,7 +22,7 @@
             android:grantUriPermissions="true">
             <meta-data
                 android:name="android.support.FILE_PROVIDER_PATHS"
-                android:resource="@xml/filepaths" />
+                android:resource="@xml/file_paths" />
         </provider>
         <!-- ************************************************************************ -->
 
@@ -54,6 +54,7 @@
         <activity android:name=".view.ReportesActivity" android:exported="true" />
 
         <activity android:name=".view.DetalleProductoActivity" android:exported="false" />
+
 
     </application>
 </manifest>

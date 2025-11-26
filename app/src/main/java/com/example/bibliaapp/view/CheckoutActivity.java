@@ -29,9 +29,9 @@ import java.util.Random;
 
 public class CheckoutActivity extends AppCompatActivity {
 
-    private EditText etNombre, etTelefono, etDireccion;
-    private RadioGroup rgPago;
-    private RadioButton rbYape, rbPlin;
+    private EditText etNombre, etTelefono, etDireccion, etRuc, etRazonSocial;
+    private RadioGroup rgPago, rgComprobante;
+    private RadioButton rbYape, rbPlin, rbBoleta, rbFactura;
     private ImageView ivQrYape, ivQrPlin;
     private TextView tvDatosYape, tvDatosPlin;
     private Button btnRealizarCompra;
@@ -56,9 +56,19 @@ public class CheckoutActivity extends AppCompatActivity {
 
         toolbar.setTitleTextColor(0xFF000000);
 
+        // Campos de Cliente
         etNombre = findViewById(R.id.etNombre);
         etTelefono = findViewById(R.id.etTelefono);
         etDireccion = findViewById(R.id.etDireccion);
+
+        // Comprobantes (NUEVOS)
+        rgComprobante = findViewById(R.id.rgComprobante);
+        rbBoleta = findViewById(R.id.rbBoleta);
+        rbFactura = findViewById(R.id.rbFactura);
+        etRuc = findViewById(R.id.etRuc);
+        etRazonSocial = findViewById(R.id.etRazonSocial);
+
+        // Pagos
         rgPago = findViewById(R.id.rgPago);
         rbYape = findViewById(R.id.rbYape);
         rbPlin = findViewById(R.id.rbPlin);
@@ -68,6 +78,8 @@ public class CheckoutActivity extends AppCompatActivity {
         tvDatosPlin = findViewById(R.id.tvDatosPlin);
         btnRealizarCompra = findViewById(R.id.btnRealizarCompra);
 
+
+        // Filtros de Input (existentes)
         etNombre.setFilters(new InputFilter[]{new InputFilter() {
             @Override
             public CharSequence filter(CharSequence source, int start, int end, Spanned dest, int dstart, int dend) {
@@ -81,6 +93,23 @@ public class CheckoutActivity extends AppCompatActivity {
         }});
         etTelefono.setFilters(new InputFilter[]{new InputFilter.LengthFilter(9)});
 
+
+        // Listener para Comprobante (NUEVO)
+        rgComprobante.setOnCheckedChangeListener((group, checkedId) -> {
+            if (checkedId == R.id.rbFactura) {
+                // Mostrar campos de Factura
+                etRuc.setVisibility(View.VISIBLE);
+                etRazonSocial.setVisibility(View.VISIBLE);
+            } else {
+                // Ocultar campos de Factura (Boleta)
+                etRuc.setVisibility(View.GONE);
+                etRazonSocial.setVisibility(View.GONE);
+                etRuc.setText(""); // Limpiar campos si cambia a Boleta
+                etRazonSocial.setText("");
+            }
+        });
+
+        // Listener para Pago (existente)
         ivQrYape.setVisibility(View.GONE);
         ivQrPlin.setVisibility(View.GONE);
         tvDatosYape.setVisibility(View.GONE);
@@ -116,6 +145,12 @@ public class CheckoutActivity extends AppCompatActivity {
                 String metodoPago = (rgPago.getCheckedRadioButtonId() == rbYape.getId()) ? "Yape" : "Plin";
                 String estadoPedido = "Pendiente";
 
+                // *** OBTENER TIPO DE COMPROBANTE ***
+                String tipoComprobante = (rgComprobante.getCheckedRadioButtonId() == rbFactura.getId()) ? "Factura" : "Boleta";
+                String ruc = etRuc.getText().toString().trim();
+                String razonSocial = etRazonSocial.getText().toString().trim();
+                // **********************************
+
                 Random random = new Random();
                 int idPedido = 100000 + random.nextInt(900000);
 
@@ -124,7 +159,8 @@ public class CheckoutActivity extends AppCompatActivity {
                         nombreCliente,
                         telefonoCliente,
                         direccionCliente,
-                        productosCopia
+                        productosCopia,
+                        tipoComprobante
                 );
                 pedido.setTipoEntrega(metodoPago);
                 pedido.setEstado(estadoPedido);
@@ -132,15 +168,34 @@ public class CheckoutActivity extends AppCompatActivity {
                 long idPedidoGuardado = dbHelper.guardarPedidoCompleto(pedido, productosCopia);
 
                 if (idPedidoGuardado > 0) {
-                    dbHelper.guardarTelefonoDeCliente(telefonoCliente);
 
+                    // LÓGICA DE FACTURA/BOLETA
+                    if (tipoComprobante.equals("Factura")) {
+                        dbHelper.insertFactura(
+                                (int) idPedidoGuardado,
+                                pedido.getTotal(),
+                                String.valueOf(idPedido), // Usamos el código del pedido como N° de Factura temporal
+                                ruc,
+                                razonSocial
+                        );
+                    } else {
+                        dbHelper.insertBoleta(
+                                (int) idPedidoGuardado,
+                                pedido.getTotal(),
+                                String.valueOf(idPedido) // Usamos el código del pedido como N° de Boleta temporal
+                        );
+                    }
+
+                    dbHelper.guardarTelefonoDeCliente(telefonoCliente);
                     PedidoSingleton.getInstance().agregarPedido(pedido);
 
                     Toast.makeText(CheckoutActivity.this, "Compra N° " + pedido.getIdPedido() + " registrada con éxito.", Toast.LENGTH_LONG).show();
 
                     Intent intent = new Intent(CheckoutActivity.this, BoletaActivity.class);
-                    // Se corrige el método de acceso a getIdPedido()
-                    intent.putExtra("idPedido", pedido.getIdPedido());
+                    // IMPORTANTE: Debemos pasar el ID real de la base de datos para la consulta.
+                    // Aquí asumimos que BoletaActivity también puede manejar Factura.
+                    intent.putExtra("idPedidoDB", idPedidoGuardado);
+                    intent.putExtra("tipoComprobante", tipoComprobante);
                     startActivity(intent);
 
                     CarritoSingleton.getInstance().limpiarCarrito();
@@ -152,25 +207,24 @@ public class CheckoutActivity extends AppCompatActivity {
         });
     }
 
-
     @Override
     public boolean onSupportNavigateUp() {
         finish();
         return true;
     }
 
-    // Se reubica la función de validación al final de la clase para evitar errores de sintaxis
+    // Validación de todos los campos, incluyendo RUC/Razón Social si es Factura
     private boolean validarYGuardar() {
         String nombre = etNombre.getText().toString().trim();
         String telefono = etTelefono.getText().toString().trim();
         String direccion = etDireccion.getText().toString().trim();
         int metodoId = rgPago.getCheckedRadioButtonId();
+        int comprobanteId = rgComprobante.getCheckedRadioButtonId();
 
         if (nombre.isEmpty()) {
             Toast.makeText(this, "Nombre inválido", Toast.LENGTH_SHORT).show();
             return false;
         }
-        // Validación de 9 dígitos
         if (!telefono.matches("\\d{9}")) {
             Toast.makeText(this, "Teléfono inválido (debe ser 9 dígitos)", Toast.LENGTH_SHORT).show();
             return false;
@@ -184,8 +238,21 @@ public class CheckoutActivity extends AppCompatActivity {
             return false;
         }
 
-        // No se muestra Toast "Compra realizada con éxito" aquí, ya que se muestra
-        // si el dbHelper.guardarPedidoCompleto fue exitoso.
+        // NUEVA VALIDACIÓN PARA COMPROBANTE
+        if (comprobanteId == R.id.rbFactura) {
+            String ruc = etRuc.getText().toString().trim();
+            String razonSocial = etRazonSocial.getText().toString().trim();
+
+            if (!ruc.matches("\\d{11}")) {
+                Toast.makeText(this, "RUC inválido (debe ser 11 dígitos)", Toast.LENGTH_SHORT).show();
+                return false;
+            }
+            if (razonSocial.isEmpty()) {
+                Toast.makeText(this, "Razón Social es obligatoria para Factura", Toast.LENGTH_SHORT).show();
+                return false;
+            }
+        }
+
         return true;
     }
 }

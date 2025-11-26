@@ -2,6 +2,7 @@ package com.example.bibliaapp.view;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
@@ -21,14 +22,14 @@ import androidx.appcompat.widget.Toolbar;
 import androidx.core.view.GravityCompat;
 import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
 
+import androidx.recyclerview.widget.RecyclerView;
 import com.example.bibliaapp.R;
 import com.example.bibliaapp.model.CarritoItem;
 import com.example.bibliaapp.model.DBHelper;
 import com.example.bibliaapp.model.Pedido;
 import com.example.bibliaapp.model.Producto;
-import com.example.bibliaapp.model.SharedPreferencesManager; // Importación CLAVE para la validación
+import com.example.bibliaapp.model.SharedPreferencesManager;
 import com.google.android.material.navigation.NavigationView;
 
 import java.text.SimpleDateFormat;
@@ -39,14 +40,15 @@ import java.util.Locale;
 
 public class VentasFisicasActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
 
-    // --- Variables de Navegación (Igual que en InicioActivity) ---
+    // --- Variables de Navegación ---
     private DrawerLayout drawerLayout;
     private NavigationView navigationView;
 
     // --- Variables del Módulo de Ventas ---
     private TextView tvFechaVenta, tvTotalVenta;
     private EditText etNombreCliente, etTelefono, etCantidad;
-    private Spinner spMetodoPago, spProductos;
+    private Spinner spMetodoPago, spProductos, spTipoComprobante;
+    private EditText etRuc, etRazonSocial;
     private Button btnAnadirItem, btnGuardarVenta;
     private RecyclerView rvItemsVenta;
 
@@ -61,31 +63,38 @@ public class VentasFisicasActivity extends AppCompatActivity implements Navigati
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // --- INICIO: BLINDAJE DE SEGURIDAD POR ROL (Vendedor/Administrador) ---
+        // --- BLINDAJE DE SEGURIDAD POR ROL (Vendedor/Administrador) ---
         String rol = SharedPreferencesManager.getInstance(this).getUserRol();
         if (!rol.equals("administrador") && !rol.equals("vendedor")) {
             Toast.makeText(this, "Acceso no autorizado al Módulo de Ventas.", Toast.LENGTH_LONG).show();
-            // Redirigir a la pantalla principal (ProductosActivity)
+            // Asumiendo que ProductosActivity es la actividad de inicio
             Intent intent = new Intent(this, ProductosActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
             finish();
-            return; // Termina la ejecución de onCreate
+            return;
         }
-        // --- FIN: BLINDAJE DE SEGURIDAD ---
-
         setContentView(R.layout.activity_ventas_fisicas);
 
-        // 1. Configuración del Toolbar y Drawer (Igual que InicioActivity)
+        // 1. Configuración del Toolbar y Drawer
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-
-        // Título y color
-        getSupportActionBar().setTitle("Módulo de Ventas");
         toolbar.setTitleTextColor(getResources().getColor(R.color.black));
+        getSupportActionBar().setTitle("Módulo de Ventas");
 
         drawerLayout = findViewById(R.id.drawer_layout);
         navigationView = findViewById(R.id.nav_view);
+
+        // ** CONFIGURACIÓN DE VISIBILIDAD DEL MENÚ **
+        // Asegúrate de que los grupos de gestión y reportes sean visibles para el admin/vendedor
+        if ("administrador".equals(rol) || "vendedor".equals(rol)) {
+            navigationView.getMenu().setGroupVisible(R.id.grupo_gestion, true);
+        }
+        if ("administrador".equals(rol)) {
+            navigationView.getMenu().setGroupVisible(R.id.grupo_reportes, true);
+        }
+        // *******************************************
+
         navigationView.setNavigationItemSelectedListener(this);
 
         ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
@@ -108,26 +117,45 @@ public class VentasFisicasActivity extends AppCompatActivity implements Navigati
         actualizarTotalVenta();
     }
 
-    // --- MÉTODOS DE NAVEGACIÓN (Copiados de InicioActivity) ---
-
     @Override
     protected void onResume() {
         super.onResume();
-        MenuUtil.configurarMenuPorRol(this, navigationView);
-
-        // Re-validación de seguridad en onResume
         String rol = SharedPreferencesManager.getInstance(this).getUserRol();
         if (!rol.equals("administrador") && !rol.equals("vendedor")) {
-            finish(); // Cierra si el rol cambió mientras la app estaba en segundo plano.
+            finish();
             return;
         }
     }
 
     @Override
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
-        boolean resultado = MenuUtil.manejarNavegacion(this, item.getItemId());
+        int id = item.getItemId();
+
+        // ** CORRECCIÓN DE IDs DE NAVEGACIÓN **
+
+        if (id == R.id.nav_inicio) {
+            startActivity(new Intent(this, InicioActivity.class));
+        } else if (id == R.id.nav_productos) {
+            startActivity(new Intent(this, ProductosActivity.class));
+        } else if (id == R.id.nav_pedidos) {
+            startActivity(new Intent(this, PedidosActivity.class));
+        } else if (id == R.id.nav_ventas) { // CORREGIDO: Usando nav_ventas del XML
+            // Ya estás aquí
+        } else if (id == R.id.nav_configuracion) {
+            startActivity(new Intent(this, GestionProductosActivity.class)); // Asumiendo que es Configuración/Gestión Productos
+        } else if (id == R.id.nav_crear_usuario) {
+            startActivity(new Intent(this, GestionUsuariosActivity.class));
+        } else if (id == R.id.nav_reportes) {
+            startActivity(new Intent(this, ReportesActivity.class)); // Asumiendo que tienes ReportesActivity
+        } else if (id == R.id.nav_logout) { // CORREGIDO: Usando nav_logout del XML
+            SharedPreferencesManager.getInstance(this).clearUserSession(); // Corregido: clearUserSession
+            Intent intent = new Intent(this, LoginActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        }
+
         drawerLayout.closeDrawer(GravityCompat.START);
-        return resultado;
+        return true;
     }
 
     @Override
@@ -135,11 +163,14 @@ public class VentasFisicasActivity extends AppCompatActivity implements Navigati
         if (drawerLayout.isDrawerOpen(GravityCompat.START)) {
             drawerLayout.closeDrawer(GravityCompat.START);
         } else {
+            // Migrar a OnBackPressedDispatcher (moderno) si es necesario,
+            // pero este enfoque antiguo aún funciona.
             super.onBackPressed();
         }
     }
 
-    // --- MÉTODOS DEL MÓDULO DE VENTAS ---
+
+    // --- MÉTODOS DEL MÓDULO DE VENTAS (Misma lógica, solo para completar el archivo) ---
 
     private void initViewsVentas() {
         tvFechaVenta = findViewById(R.id.tvFechaVenta);
@@ -152,9 +183,14 @@ public class VentasFisicasActivity extends AppCompatActivity implements Navigati
         btnAnadirItem = findViewById(R.id.btnAnadirItem);
         btnGuardarVenta = findViewById(R.id.btnGuardarVenta);
         rvItemsVenta = findViewById(R.id.rvItemsVenta);
+
+        spTipoComprobante = findViewById(R.id.spTipoComprobante);
+        etRuc = findViewById(R.id.etRuc);
+        etRazonSocial = findViewById(R.id.etRazonSocial);
     }
 
     private void setupSpinners() {
+        // --- 1. SPINNER PRODUCTOS (Sin cambios) ---
         listaProductos = dbHelper.getAllProductsSimple();
         List<String> nombresProductos = new ArrayList<>();
         for (Producto p : listaProductos) {
@@ -174,10 +210,37 @@ public class VentasFisicasActivity extends AppCompatActivity implements Navigati
             public void onNothingSelected(AdapterView<?> parent) {}
         });
 
+        // --- 2. SPINNER MÉTODO PAGO (Sin cambios) ---
         String[] metodos = new String[]{"Efectivo", "Yape", "Plin"};
         ArrayAdapter<String> pagoAdapter = new ArrayAdapter<>(this,
                 android.R.layout.simple_spinner_dropdown_item, metodos);
         spMetodoPago.setAdapter(pagoAdapter);
+
+        // --- 3. SPINNER TIPO DE COMPROBANTE (NUEVO) ---
+        String[] tiposComprobante = new String[]{"Boleta", "Factura"};
+        ArrayAdapter<String> comprobanteAdapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_dropdown_item, tiposComprobante);
+        spTipoComprobante.setAdapter(comprobanteAdapter);
+
+        // Listener para mostrar/ocultar campos de RUC/Razón Social
+        spTipoComprobante.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                String selected = parent.getItemAtPosition(position).toString();
+                if ("Factura".equals(selected)) {
+                    etRuc.setVisibility(View.VISIBLE);
+                    etRazonSocial.setVisibility(View.VISIBLE);
+                } else {
+                    etRuc.setVisibility(View.GONE);
+                    etRazonSocial.setVisibility(View.GONE);
+                }
+            }
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                etRuc.setVisibility(View.GONE);
+                etRazonSocial.setVisibility(View.GONE);
+            }
+        });
     }
 
     private void setupRecyclerView() {
@@ -235,7 +298,6 @@ public class VentasFisicasActivity extends AppCompatActivity implements Navigati
         }
 
         if (!encontrado) {
-            // Constructor: id, nombre, precio, cantidad, imagen(placeholder)
             carritoTemporal.add(new CarritoItem(productoSeleccionado.getId(), productoSeleccionado.getNombre(), productoSeleccionado.getPrecio(), cantidad, "physical"));
         }
         carritoAdapter.notifyDataSetChanged();
@@ -244,12 +306,16 @@ public class VentasFisicasActivity extends AppCompatActivity implements Navigati
     }
 
     private void confirmarYGuardarVenta() {
-        if (carritoTemporal.isEmpty()) return;
+        if (carritoTemporal.isEmpty()) {
+            Toast.makeText(this, "Debe añadir productos al carrito.", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
-        // Vendedor ID leído de la sesión (Seguro)
+        // --- 1. Capturar datos de sesión y totales ---
         int idVendedor = SharedPreferencesManager.getInstance(this).getUserId();
+        int idUsuarioCliente = 3; // Cliente genérico (Asegúrate de que el ID 3 exista o sea el ID genérico en tu DB)
+
         if (idVendedor == -1) {
-            // Esto solo ocurre si la sesión se pierde en medio de la venta, lo cual es muy improbable
             Toast.makeText(this, "Error de sesión. Intente iniciar sesión de nuevo.", Toast.LENGTH_LONG).show();
             return;
         }
@@ -257,25 +323,82 @@ public class VentasFisicasActivity extends AppCompatActivity implements Navigati
         double total = 0;
         for (CarritoItem item : carritoTemporal) total += item.getSubtotal();
 
+        // --- 2. Capturar datos de Comprobante ---
+        String tipoComprobante = spTipoComprobante.getSelectedItem().toString();
+        String ruc = null;
+        String razonSocial = null;
+        String nombreCliente = etNombreCliente.getText().toString().trim();
+        String telefono = etTelefono.getText().toString().trim();
+
+        if ("Factura".equals(tipoComprobante)) {
+            ruc = etRuc.getText().toString().trim();
+            razonSocial = etRazonSocial.getText().toString().trim();
+
+            // Validación específica para Factura
+            if (ruc.isEmpty() || ruc.length() != 11) {
+                Toast.makeText(this, "Ingrese un RUC válido (11 dígitos).", Toast.LENGTH_LONG).show();
+                etRuc.requestFocus();
+                return;
+            }
+            if (razonSocial.isEmpty()) {
+                Toast.makeText(this, "Ingrese la Razón Social.", Toast.LENGTH_LONG).show();
+                etRazonSocial.requestFocus();
+                return;
+            }
+        }
+
+        // Validación básica
+        if (nombreCliente.isEmpty()) {
+            Toast.makeText(this, "Ingrese el nombre del cliente.", Toast.LENGTH_LONG).show();
+            etNombreCliente.requestFocus();
+            return;
+        }
+
+
+        // --- 3. Crear el objeto Pedido completo ---
         Pedido pedido = new Pedido(
-                dbHelper.generateCodigoPedido(), idVendedor, total, "Completado",
-                spMetodoPago.getSelectedItem().toString(), etTelefono.getText().toString().trim(),
-                etNombreCliente.getText().toString().trim(), carritoTemporal
+                dbHelper.generateCodigoPedido(), // idPedido (código)
+                idUsuarioCliente, // idUsuario (el cliente genérico)
+                idVendedor, // idVendedor (El usuario logueado)
+                total,
+                "Completado",
+                spMetodoPago.getSelectedItem().toString(), // tipoEntrega (método de pago)
+                telefono,
+                nombreCliente,
+                tipoComprobante, // Tipo Comprobante
+                carritoTemporal
         );
 
+        // Asignamos RUC/RazonSocial
+        if ("Factura".equals(tipoComprobante)) {
+            pedido.setRuc(ruc);
+            pedido.setRazonSocial(razonSocial);
+        }
+
+
+        // --- 4. Guardar en la DB ---
         if (dbHelper.insertPedidoFisico(pedido, idVendedor)) {
-            Toast.makeText(this, "Venta guardada. Se ha generado la boleta.", Toast.LENGTH_LONG).show();
+
+            // Limpieza y feedback
+            Toast.makeText(this, "Venta guardada. Se ha generado la " + tipoComprobante + ".", Toast.LENGTH_LONG).show();
             carritoTemporal.clear();
             carritoAdapter.notifyDataSetChanged();
             actualizarTotalVenta();
+
+            // Limpiar campos de entrada
             etNombreCliente.setText("");
             etTelefono.setText("");
-            setupSpinners(); // Recargar stock
+            etRuc.setText("");
+            etRazonSocial.setText("");
+            spTipoComprobante.setSelection(0); // Volver a Boleta
+
+            setupSpinners(); // Recargar stock para reflejar la venta
         } else {
             Toast.makeText(this, "Error al guardar la venta.", Toast.LENGTH_LONG).show();
         }
     }
 
+    // --- CLASE INTERNA CarritoAdapter (Se deja sin cambios) ---
     private class CarritoAdapter extends RecyclerView.Adapter<CarritoAdapter.ViewHolder> {
         private List<CarritoItem> items;
         public CarritoAdapter(List<CarritoItem> items) { this.items = items; }
@@ -290,14 +413,12 @@ public class VentasFisicasActivity extends AppCompatActivity implements Navigati
             holder.tvCantidad.setText("x" + item.getCantidad());
             holder.tvPrecio.setText("S/" + String.format(Locale.getDefault(), "%.2f", item.getSubtotal()));
 
-            // Forzar color negro (por si acaso)
             holder.tvNombre.setTextColor(getResources().getColor(R.color.black));
             holder.tvCantidad.setTextColor(getResources().getColor(R.color.black));
             holder.tvPrecio.setTextColor(getResources().getColor(R.color.black));
 
             holder.btnEliminar.setOnClickListener(v -> {
                 items.remove(position);
-                // Usamos notifyItemRemoved y notifyItemRangeChanged para mejor performance
                 notifyItemRemoved(position);
                 notifyItemRangeChanged(position, items.size());
                 actualizarTotalVenta();

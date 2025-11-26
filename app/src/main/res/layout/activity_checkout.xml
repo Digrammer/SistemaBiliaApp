@@ -11,7 +11,6 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- Toolbar con flecha para regresar -->
         <androidx.appcompat.widget.Toolbar
             android:id="@+id/toolbarCheckout"
             android:layout_width="match_parent"
@@ -35,7 +34,7 @@
             android:id="@+id/etTelefono"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="Teléfono"
+            android:hint="Teléfono (9 dígitos)"
             android:inputType="phone"
             android:padding="12dp"
             android:textColor="#000000"
@@ -53,6 +52,62 @@
             android:background="@android:drawable/edit_text"
             android:layout_marginTop="12dp"/>
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Tipo de Comprobante"
+            android:textSize="18sp"
+            android:textColor="#000000"
+            android:layout_marginTop="20dp"/>
+
+        <RadioGroup
+            android:id="@+id/rgComprobante"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <RadioButton
+                android:id="@+id/rbBoleta"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Boleta"
+                android:checked="true"
+                android:textColor="#000000"/>
+
+            <RadioButton
+                android:id="@+id/rbFactura"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Factura"
+                android:textColor="#000000"
+                android:layout_marginStart="16dp"/>
+        </RadioGroup>
+
+        <EditText
+            android:id="@+id/etRuc"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="RUC (11 dígitos)"
+            android:inputType="number"
+            android:maxLength="11"
+            android:padding="12dp"
+            android:textColor="#000000"
+            android:background="@android:drawable/edit_text"
+            android:layout_marginTop="12dp"
+            android:visibility="gone"/>
+
+        <EditText
+            android:id="@+id/etRazonSocial"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Razón Social"
+            android:inputType="textCapWords"
+            android:padding="12dp"
+            android:textColor="#000000"
+            android:background="@android:drawable/edit_text"
+            android:layout_marginTop="12dp"
+            android:visibility="gone"/>
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -84,7 +139,6 @@
                 android:layout_marginStart="16dp"/>
         </RadioGroup>
 
-        <!-- Datos y QR de Yape -->
         <TextView
             android:id="@+id/tvDatosYape"
             android:layout_width="wrap_content"
@@ -102,9 +156,9 @@
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="8dp"
             android:src="@drawable/qryape"
+            android:contentDescription="Código QR Yape"
             android:visibility="gone"/>
 
-        <!-- Datos y QR de Plin -->
         <TextView
             android:id="@+id/tvDatosPlin"
             android:layout_width="wrap_content"
@@ -122,6 +176,7 @@
             android:layout_gravity="center_horizontal"
             android:layout_marginTop="8dp"
             android:src="@drawable/qrplin"
+            android:contentDescription="Código QR Plin"
             android:visibility="gone"/>
 
         <Button

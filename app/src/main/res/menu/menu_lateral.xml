@@ -25,8 +25,7 @@
         <item android:title="Gestión del Negocio">
             <menu>
                 <item
-                    android:id="@+id/nav_ventas_fisicas"
-                    android:icon="@android:drawable/ic_menu_edit"
+                    android:id="@+id/nav_ventas" android:icon="@android:drawable/ic_menu_edit"
                     android:title="Módulo de Ventas"/>
                 <item
                     android:id="@+id/nav_configuracion"
@@ -55,7 +54,5 @@
     </group>
 
     <item
-        android:id="@+id/nav_logout"
-        android:icon="@drawable/ic_flecha_atras_negra"
-        android:title="Iniciar Sesión"/>
-</menu>
+        android:id="@+id/nav_logout" android:icon="@drawable/ic_flecha_atras_negra"
+        android:title="Cerrar Sesión"/> </menu>

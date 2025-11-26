@@ -37,6 +37,27 @@
                 android:textStyle="italic" />
 
             <TextView
+                android:id="@+id/tvRuc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="14sp"
+                android:textColor="@color/black"
+                android:textStyle="bold"
+                android:layout_marginBottom="4dp"
+                android:visibility="gone"
+                android:text="RUC: N/A"/>
+
+            <TextView
+                android:id="@+id/tvRazonSocial"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="14sp"
+                android:textColor="@color/black"
+                android:textStyle="bold"
+                android:layout_marginBottom="12dp"
+                android:visibility="gone"
+                android:text="Razón Social: N/A"/>
+            <TextView
                 android:id="@+id/tvBoleta"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

@@ -60,8 +60,9 @@ public class SharedPreferencesManager {
 
     /**
      * Cierra la sesión y limpia todos los datos.
+     * (Corregido el nombre del método para resolver 'Cannot resolve method clearUserSession')
      */
-    public void clearSession() {
+    public void clearUserSession() {
         editor.clear();
         editor.apply();
     }

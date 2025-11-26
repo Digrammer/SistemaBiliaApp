@@ -20,9 +20,6 @@ public class PedidoController {
     private final DBHelper dbHelper;
     private final Context context;
 
-    // Asumo que tu DBHelper tiene una constante para la columna ID de usuario en la tabla de pedidos
-    // Si no tienes una constante COL_PEDIDO_ID_USUARIO en DBHelper, usa "id_usuario"
-    // He ajustado para usar COL_USUARIO_ID si es la que usas para referenciar el usuario
     private static final String COL_ID_USUARIO_PEDIDO = "id_usuario";
 
     public PedidoController(Context context) {
@@ -80,7 +77,6 @@ public class PedidoController {
             // Obtener los índices de las columnas
             int idPedidoIndex = cursor.getColumnIndexOrThrow("id_pedido"); // ID interno
             int codigoIndex = cursor.getColumnIndexOrThrow("codigo");
-            // Usamos la constante local si el DBHelper no tiene una constante específica para la columna del FK
             int idUsuarioIndex = cursor.getColumnIndexOrThrow(COL_ID_USUARIO_PEDIDO);
             int estadoIndex = cursor.getColumnIndexOrThrow("estado");
             int tipoEntregaIndex = cursor.getColumnIndexOrThrow("metodo_pago");
@@ -88,9 +84,13 @@ public class PedidoController {
             int totalIndex = cursor.getColumnIndexOrThrow("total");
             int nombreClienteIndex = cursor.getColumnIndexOrThrow("nombre_cliente");
 
+            // *** NUEVAS COLUMNAS ***
+            int idVendedorIndex = cursor.getColumnIndexOrThrow(DBHelper.COL_PEDIDO_ID_VENDEDOR);
+            int tipoComprobanteIndex = cursor.getColumnIndexOrThrow(DBHelper.COL_PEDIDO_TIPO_COMPROBANTE);
+            // ***********************
+
             while (cursor.moveToNext()) {
                 int idPedidoInterno = cursor.getInt(idPedidoIndex);
-                // El código de pedido (ej: 6 dígitos) es el que usaremos como ID externo
                 String codigo = cursor.getString(codigoIndex);
                 int idUsuario = cursor.getInt(idUsuarioIndex);
                 String estado = cursor.getString(estadoIndex);
@@ -99,18 +99,22 @@ public class PedidoController {
                 double total = cursor.getDouble(totalIndex);
                 String nombreCliente = cursor.getString(nombreClienteIndex);
 
+                // *** LECTURA DE NUEVOS VALORES ***
+                int idVendedor = cursor.isNull(idVendedorIndex) ? 0 : cursor.getInt(idVendedorIndex);
+                // Si el valor es nulo (pedidos viejos), asumimos 'Boleta'
+                String tipoComprobante = cursor.isNull(tipoComprobanteIndex) ? "Boleta" : cursor.getString(tipoComprobanteIndex);
+                // **********************************
+
                 // 1. Obtener la Dirección y Nombre registrado del usuario
                 String direccionCliente = "N/A";
+                // Usar el ID de la FK
                 Cursor userCursor = dbHelper.getUsuarioById(idUsuario);
                 if (userCursor != null && userCursor.moveToFirst()) {
-                    // ASUMO que estas constantes existen en DBHelper:
                     int direccionIndex = userCursor.getColumnIndexOrThrow(DBHelper.COL_USUARIO_DIRECCION);
                     int nombreUsuarioIndex = userCursor.getColumnIndexOrThrow(DBHelper.COL_USUARIO_NOMBRE);
 
                     direccionCliente = userCursor.getString(direccionIndex);
 
-                    // Si el pedido es online, el nombre_cliente será nulo, usamos el nombre del usuario registrado.
-                    // Si la venta es física, el nombre_cliente puede ser el nombre del vendedor o el cliente físico.
                     if (nombreCliente == null || nombreCliente.isEmpty() || nombreCliente.equalsIgnoreCase("Tienda Física")) {
                         nombreCliente = userCursor.getString(nombreUsuarioIndex);
                     }
@@ -120,18 +124,20 @@ public class PedidoController {
                 // 2. Obtener los ítems del detalle del pedido
                 List<CarritoItem> items = getDetallePedidoItems(idPedidoInterno);
 
-                // Construir el objeto Pedido usando el CONSTRUCTOR 3 (el más completo)
+                // Construir el objeto Pedido usando el CONSTRUCTOR 3 (9 ARGUMENTOS)
                 Pedido pedido = new Pedido(
                         Integer.parseInt(codigo),
                         idUsuario,
+                        idVendedor, // <<-- Nuevo Argumento
                         total,
                         estado,
                         tipoEntrega,
                         telefono,
                         nombreCliente,
+                        tipoComprobante, // <<-- Nuevo Argumento
                         items
                 );
-                // 3. Establecer la dirección usando el SETTER (ya corregido en Pedido.java)
+                // 3. Establecer la dirección usando el SETTER
                 pedido.setDireccion(direccionCliente);
 
                 pedidos.add(pedido);
@@ -146,6 +152,7 @@ public class PedidoController {
      * Obtiene los items del detalle de un pedido específico.
      */
     public List<CarritoItem> getDetallePedidoItems(int idPedidoInterno) {
+        // ... (El resto de la función es idéntica a tu código original y no necesita cambios)
         List<CarritoItem> items = new ArrayList<>();
         // ASUMO que dbHelper.getDetallePedidoConNombre existe y trae las columnas necesarias
         Cursor detalleCursor = dbHelper.getDetallePedidoConNombre(idPedidoInterno);
@@ -167,12 +174,8 @@ public class PedidoController {
                 double precioUnitario = detalleCursor.getDouble(precioIndex);
                 int idProducto = detalleCursor.getInt(idProductoIndex);
 
-                // Creamos un Producto con la info de la DB (el precio histórico y nombre)
-                Producto producto = new Producto(idProducto, nombreProducto, precioUnitario, null, 0, 0);
-
-                // Creamos el CarritoItem (Usamos el constructor que toma Producto y cantidad, si existe)
-                // ASUMO que tienes un constructor en CarritoItem que toma (int id, String nombre, double precio, int cantidad, String imagen)
-                // Como tu CarritoItem ahora tiene los datos necesarios, lo construimos directamente para simplificar.
+                // Creamos el CarritoItem
+                // (Usamos el constructor que toma Producto y cantidad, si existe)
                 CarritoItem item = new CarritoItem(idProducto, nombreProducto, precioUnitario, cantidad, null);
 
                 // 4. Asignamos el subtotal real (histórico) usando el SETTER (ya corregido en CarritoItem.java)
